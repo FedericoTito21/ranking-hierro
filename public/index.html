@@ -668,7 +668,24 @@ function renderOnboard(){
   const suggested = currentUser.displayName || '';
   return `
     <div class="card">
-      <h2 style="margin:0 0 4px;font-size:17px;">Completa tu perfil</h2>
+      <h2 style="margin:0 0 8px;font-size:18px;">🏋️ ¿Qué es Ranking de Hierro?</h2>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 10px;line-height:1.5;">
+        Un sitio para comparar vuestra fuerza real con el grupo, ajustada al peso corporal —
+        no gana quien levanta más kilos en bruto, sino quien está más fuerte en proporción a su cuerpo.
+      </p>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 10px;line-height:1.5;">
+        Registra tus marcas (peso × repeticiones) en más de 50 ejercicios. Cada uno tiene 5 niveles —
+        <b style="color:var(--chalk);">Novato, Intermedio, Avanzado, Élite y Top Mundial</b> — calculados sobre tu propio peso corporal.
+      </p>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 14px;line-height:1.5;">
+        Con Press banca, Sentadilla, Peso muerto y Dominadas se calcula además tu
+        <b style="color:var(--chalk);">Nivel Global (NGU)</b>, con tiers de 🐱 Gatito a 🐯 Tigre de Bengala.
+        Podrás ver el ranking del grupo, tu progreso en el tiempo, comparar gráficas con amigos y más.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px;font-size:15px;">Completa tu perfil</h3>
       <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">Sesión iniciada como ${esc(currentUser.email||'')}. Solo falta tu peso corporal.</p>
       <label>Nombre para mostrar</label>
       <input id="newName" value="${esc(suggested)}" placeholder="Ej: Marc" />
