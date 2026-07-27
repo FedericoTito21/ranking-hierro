@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranking de Hierro</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --bg:#121214; --surface:#1b1b1e; --surface2:#232327; --line:#2e2e33;
+    --chalk:#EDEDE6; --muted:#93939b;
+    --accent:#E8402C; --accent-dim:#5c211a;
+    --t-novato:#6b7280; --t-intermedio:#4C8BF5; --t-avanzado:#34B27B; --t-elite:#E8402C; --t-top:#E3B341;
+    font-family:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  .app{background:var(--bg);color:var(--chalk);min-height:100vh;padding:0 0 48px;}
+  h1,h2,h3,.disp{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:0.03em;}
+  .hero{padding:28px 20px 22px;border-bottom:1px solid var(--line);background:
+    linear-gradient(180deg, rgba(232,64,44,0.08), transparent 70%);}
+  .hero h1{font-size:26px;font-weight:700;margin:0 0 4px;color:var(--chalk);}
+  .hero .accent{color:var(--accent);}
+  .hero p{margin:0;color:var(--muted);font-size:13.5px;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin-top:16px;}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+  input,select{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--chalk);
+    padding:10px 11px;border-radius:7px;font-size:15px;font-family:'Inter',sans-serif;}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent);}
+  .row{display:flex;gap:10px;}
+  .row > *{flex:1;}
+  button{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;font-weight:600;
+    background:var(--accent);color:#fff;border:none;border-radius:7px;padding:12px 16px;font-size:14px;cursor:pointer;
+    transition:filter .15s;}
+  button:hover{filter:brightness(1.1);}
+  button:focus-visible{outline:2px solid var(--chalk);outline-offset:2px;}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);}
+  button.small{padding:7px 10px;font-size:12px;}
+  .quickpick{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .quickpick button{background:var(--surface2);color:var(--chalk);border:1px solid var(--line);font-family:'Inter';
+    text-transform:none;font-weight:500;letter-spacing:0;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;}
+  .whoami{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);}
+  .whoami img{width:26px;height:26px;border-radius:50%;display:block;}
+  .whoami b{color:var(--chalk);}
+  .section-title{font-size:13px;color:var(--muted);letter-spacing:.08em;margin:26px 0 8px;padding:0 2px;}
+  .ex-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:10px;}
+  .ex-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .ex-head h3{margin:0;font-size:15px;font-weight:600;color:var(--chalk);}
+  .badge{font-family:'Oswald',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+    padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;}
+  .track{position:relative;height:10px;border-radius:6px;overflow:hidden;display:flex;margin-top:12px;background:var(--surface2);}
+  .track .seg{height:100%;}
+  .marker{position:absolute;top:-4px;width:3px;height:18px;background:var(--chalk);border-radius:2px;
+    box-shadow:0 0 0 2px var(--bg);}
+  .ex-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px;}
+  .next-hint{font-size:12px;color:var(--muted);margin-top:8px;}
+  .hist-del{background:none;border:none;color:var(--muted);font-size:15px;line-height:1;padding:2px 4px;
+    cursor:pointer;flex-shrink:0;}
+  .hist-del:hover{color:var(--accent);}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-family:'Oswald',sans-serif;font-size:11px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.05em;font-weight:600;padding:6px 6px;border-bottom:1px solid var(--line);}
+  td{padding:8px 6px;border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  .you-row td{background:rgba(232,64,44,0.08);}
+  .rank-row.you-row{background:rgba(232,64,44,0.08);border-radius:6px;}
+  .pos{color:var(--muted);font-variant-numeric:tabular-nums;width:22px;}
+  .empty{color:var(--muted);font-size:13px;padding:8px 2px;}
+  .footer-actions{display:flex;justify-content:space-between;align-items:center;margin-top:26px;padding:0 2px;}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--surface2);
+    border:1px solid var(--line);color:var(--chalk);padding:10px 16px;border-radius:8px;font-size:13px;
+    opacity:0;transition:opacity .25s;pointer-events:none;z-index:50;}
+  .toast.show{opacity:1;}
+  .spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;
+    animation:sp .7s linear infinite;margin:30px auto;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .tabs{display:flex;gap:6px;margin-top:18px;}
+  .tabs button{flex:1;background:var(--surface2);color:var(--muted);border:1px solid var(--line);
+    font-family:'Oswald';text-transform:uppercase;font-size:12.5px;}
+  .tabs button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .rank-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);}
+  .rank-row:last-child{border-bottom:none;}
+  .rank-pos{font-family:'Oswald';font-size:15px;color:var(--muted);width:20px;}
+  .rank-name{flex:1;font-size:14px;font-weight:500;}
+  .rank-avg{font-size:12px;color:var(--muted);}
+  @media(max-width:420px){.hero h1{font-size:22px;}}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;
+    justify-content:center;z-index:100;padding:20px;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;
+    max-width:340px;width:100%;}
+  .modal-box h3{margin:0 0 10px;font-size:16px;color:var(--chalk);}
+  .modal-box p{margin:0 0 14px;font-size:13.5px;color:var(--muted);line-height:1.4;}
+  .modal-box input{margin-bottom:4px;}
+  .modal-actions{display:flex;gap:10px;margin-top:16px;}
+  .modal-actions button{flex:1;}
+  .subtabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-top:2px;-webkit-overflow-scrolling:touch;}
+  .subtabs button{flex:0 0 auto;background:var(--surface2);color:var(--muted);border:1px solid var(--line);
+    font-family:'Inter',sans-serif;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;
+    padding:7px 13px;border-radius:20px;white-space:nowrap;}
+  .subtabs button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .chart-caption{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px;}
+  .signin-card{text-align:center;padding:32px 20px;}
+  .google-btn{background:#fff;color:#1f1f1f;display:inline-flex;align-items:center;gap:10px;
+    padding:11px 20px;border-radius:8px;font-family:'Inter',sans-serif;text-transform:none;
+    letter-spacing:0;font-weight:600;font-size:14.5px;border:1px solid #dadce0;}
+  .google-btn:hover{filter:none;background:#f7f7f7;}
+  .avatar{border-radius:50%;object-fit:cover;flex-shrink:0;display:block;}
+  .avatar-fallback{border-radius:50%;background:var(--surface2);border:1px solid var(--line);
+    display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;font-weight:600;}
+  .star-btn{background:none;border:none;color:var(--accent);font-size:17px;line-height:1;padding:0 2px;cursor:pointer;}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:6px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .export-actions{display:flex;gap:10px;margin-top:10px;}
+  .export-actions button{flex:1;}
+  .ticker-wrap{overflow:hidden;white-space:nowrap;background:var(--surface);border:1px solid var(--line);
+    border-radius:8px;padding:9px 0;margin-top:14px;position:relative;}
+  .ticker-wrap::before{content:'EN VIVO';position:absolute;left:0;top:0;bottom:0;display:flex;align-items:center;
+    padding:0 10px;background:var(--accent);color:#fff;font-family:'Oswald',sans-serif;font-size:10px;
+    font-weight:700;letter-spacing:.06em;z-index:2;}
+  .ticker-track{display:inline-block;padding-left:calc(100% + 90px);animation:ticker linear infinite;}
+  .ticker-track span{margin-right:36px;font-size:12.5px;color:var(--chalk);}
+  .ticker-empty{padding:9px 16px;font-size:12.5px;color:var(--muted);}
+  @keyframes ticker{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="hero">
+    <div class="wrap">
+      <h1>Ranking de <span class="accent">Hierro</span></h1>
+      <p>Comparad vuestra fuerza real, ajustada al peso corporal.</p>
+    </div>
+  </div>
+  <div class="wrap" id="main">
+    <div class="spin"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modalOverlay"></div>
+
+<!-- Firebase SDK (compat, no build step needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+(function(){
+
+// =====================================================================
+// 1) PEGA AQUÍ LA CONFIGURACIÓN DE TU PROYECTO DE FIREBASE.
+//    La sacas en: Firebase Console > Configuración del proyecto >
+//    tus apps > SDK setup and configuration > Config.
+// =====================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyA-Gm5z3AE4ENfztReUe9GiHWFrcCbA2gk",
+  authDomain: "ranking-hierro.firebaseapp.com",
+  projectId: "ranking-hierro",
+  storageBucket: "ranking-hierro.firebasestorage.app",
+  messagingSenderId: "128250068984",
+  appId: "1:128250068984:web:e23cbbeffa07247816600d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const TIER_NAMES = ['Novato','Intermedio','Avanzado','Élite','Top Mundial'];
+const TIER_COLORS = ['var(--t-novato)','var(--t-intermedio)','var(--t-avanzado)','var(--t-elite)','var(--t-top)'];
+
+function t(...arr){ return arr.map((a,i)=>({name:TIER_NAMES[i],mult:a[0],reps:a[1]})); }
+function tb(...arr){ return arr.map((a,i)=>({name:TIER_NAMES[i],added:a[0],reps:a[1]})); }
+function tAbs(...arr){ return arr.map((a,i)=>({name:TIER_NAMES[i],weight:a[0],reps:a[1]})); }
+function tTime(...arr){ return arr.map((a,i)=>({name:TIER_NAMES[i],seconds:a})); }
+
+const EXERCISES = [
+  {id:'press_banca', name:'Press banca', type:'weighted', tiers:t([0.6,5],[0.9,3],[1.2,1],[1.5,1],[2.0,1])},
+  {id:'sentadilla', name:'Sentadilla', type:'weighted', tiers:t([1.0,5],[1.4,3],[1.8,1],[2.2,1],[2.7,1])},
+  {id:'peso_muerto', name:'Peso muerto', type:'weighted', tiers:t([1.2,5],[1.6,3],[2.0,1],[2.5,1],[3.0,1])},
+  {id:'press_militar', name:'Press militar', type:'weighted', tiers:t([0.45,5],[0.65,3],[0.85,1],[1.0,1],[1.2,1])},
+  {id:'press_militar_maquina', name:'Press militar en máquina', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.40,8],[0.55,5],[0.72,3],[0.90,1],[1.10,1])},
+  {id:'remo_barra', name:'Remo con barra', type:'weighted', tiers:t([0.5,8],[0.75,5],[1.0,3],[1.25,1],[1.5,1])},
+  {id:'curl_biceps', name:'Curl bíceps', type:'weighted', tiers:t([0.25,8],[0.35,5],[0.45,3],[0.55,1],[0.65,1])},
+  {id:'hip_thrust', name:'Hip Thrust', type:'weighted', tiers:t([1.0,8],[1.5,5],[2.0,3],[2.5,1],[3.0,1])},
+  {id:'hack_squat', name:'Hack Squat', type:'weighted', tiers:t([1.0,8],[1.5,5],[2.0,3],[2.5,1],[3.2,1])},
+  {id:'dominadas', name:'Dominadas', type:'bodyweight', tiers:tb([0,1],[0,5],[0.25,1],[0.50,1],[0.75,1])},
+  {id:'fondos', name:'Fondos', type:'bodyweight', tiers:tb([0,1],[0,8],[0.20,3],[0.40,1],[0.60,1])},
+  {id:'dominadas_supinas', name:'Dominadas supinas', type:'bodyweight', tiers:tb([0,2],[0,8],[0.20,3],[0.40,1],[0.60,1])},
+  {id:'jalon_polea_ancho', name:'Jalón en polea agarre ancho', type:'weighted', tiers:t([0.60,10],[0.80,8],[1.00,5],[1.20,3],[1.40,1])},
+  {id:'jalon_polea_estrecho', name:'Jalón en polea agarre estrecho', type:'weighted', tiers:t([0.70,10],[0.90,8],[1.10,5],[1.30,3],[1.50,1])},
+  {id:'remo_mancuerna', name:'Remo con mancuerna', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.25,10],[0.35,8],[0.45,5],[0.55,3],[0.70,1])},
+  {id:'remo_polea_estrecho', name:'Remo en polea agarre estrecho', type:'weighted', tiers:t([0.70,10],[0.90,8],[1.10,5],[1.30,3],[1.50,1])},
+  {id:'remo_polea_ancho', name:'Remo en polea agarre ancho', type:'weighted', tiers:t([0.55,10],[0.75,8],[0.95,5],[1.15,3],[1.35,1])},
+  {id:'remo_maquina_horizontal', name:'Remo en máquina horizontal', type:'weighted', tiers:t([0.70,10],[1.00,8],[1.20,5],[1.40,3],[1.70,1])},
+  {id:'remo_maquina_unilateral', name:'Remo en máquina unilateral', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.35,10],[0.50,8],[0.63,5],[0.75,3],[1.00,1])},
+  {id:'remo_maquina_tbar', name:'Remo en máquina tipo T-Bar', type:'weighted', tiers:t([0.80,8],[1.20,5],[1.45,3],[1.70,1],[2.00,1])},
+  {id:'sentadilla_multipower', name:'Sentadilla en multipower', type:'weighted', tiers:t([1.20,8],[1.60,5],[2.00,3],[2.40,1],[3.00,1])},
+  {id:'prensa_piernas', name:'Prensa de piernas', type:'weighted', tiers:t([2.00,10],[3.00,8],[3.75,5],[4.50,3],[5.50,1])},
+  {id:'zancadas', name:'Zancadas / Lunges', type:'weighted', tiers:t([0.40,10],[0.60,8],[0.75,5],[0.90,3],[1.10,1])},
+  {id:'extension_cuadriceps', name:'Extensión de cuádriceps', type:'weighted', tiers:t([0.40,12],[0.60,10],[0.75,8],[0.90,6],[1.20,3])},
+  {id:'curl_femoral_tumbado', name:'Curl femoral tumbado', type:'weighted', tiers:t([0.30,12],[0.45,10],[0.58,8],[0.70,6],[0.90,3])},
+  {id:'curl_femoral_sentado', name:'Curl femoral sentado', type:'weighted', tiers:t([0.35,12],[0.50,10],[0.63,8],[0.75,6],[1.00,3])},
+  {id:'peso_muerto_rumano', name:'Peso muerto rumano', type:'weighted', tiers:t([0.80,8],[1.20,5],[1.50,3],[1.80,1],[2.20,1])},
+  {id:'gemelos_de_pie', name:'Elevación de gemelos de pie', type:'weighted', tiers:t([0.60,15],[0.90,12],[1.10,10],[1.30,8],[1.60,5])},
+  {id:'gemelos_sentado', name:'Elevación de gemelos sentado', type:'weighted', tiers:t([0.40,15],[0.60,12],[0.75,10],[0.90,8],[1.20,5])},
+  {id:'press_inclinado', name:'Press inclinado', type:'weighted', tiers:t([0.50,5],[0.75,3],[0.98,1],[1.20,1],[1.50,1])},
+  {id:'press_mancuernas', name:'Press con mancuernas', type:'weighted', tiers:t([0.40,8],[0.60,6],[0.80,4],[1.00,3],[1.30,1])},
+  {id:'press_inclinado_mancuernas', name:'Press inclinado con mancuernas', type:'weighted', tiers:t([0.35,8],[0.55,6],[0.73,4],[0.90,3],[1.20,1])},
+  {id:'aperturas_mancuernas', name:'Aperturas con mancuernas', type:'weighted', tiers:t([0.20,12],[0.30,10],[0.38,8],[0.45,6],[0.60,3])},
+  {id:'aperturas_maquina', name:'Aperturas en máquina', type:'weighted', tiers:t([0.30,12],[0.45,10],[0.58,8],[0.70,6],[0.90,3])},
+  {id:'cruces_polea', name:'Cruces en polea', type:'weighted', tiers:t([0.25,12],[0.40,10],[0.50,8],[0.60,6],[0.80,3])},
+  {id:'press_frances_barra', name:'Press francés con barra', type:'weighted', tiers:t([0.20,10],[0.30,8],[0.38,5],[0.45,3],[0.60,1])},
+  {id:'press_frances_mancuernas', name:'Press francés con mancuernas', type:'weighted', tiers:t([0.15,12],[0.25,10],[0.33,6],[0.40,3],[0.55,1])},
+  {id:'extension_triceps_cuerda', name:'Extensión de tríceps en polea con cuerda', type:'weighted', tiers:t([0.25,12],[0.40,10],[0.50,8],[0.60,6],[0.80,3])},
+  {id:'extension_polea_recto', name:'Extensión en polea agarre recto', type:'weighted', tiers:t([0.30,12],[0.45,10],[0.58,8],[0.70,6],[0.90,3])},
+  {id:'extension_polea_unilateral', name:'Extensión en polea unilateral', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.15,12],[0.25,10],[0.33,8],[0.40,6],[0.55,3])},
+  {id:'curl_barra_ez', name:'Curl con barra EZ', type:'weighted', tiers:t([0.30,8],[0.40,5],[0.50,3],[0.60,1],[0.70,1])},
+  {id:'curl_mancuernas', name:'Curl con mancuernas', type:'weighted', tiers:t([0.20,10],[0.30,8],[0.40,5],[0.50,3],[0.65,1])},
+  {id:'curl_martillo', name:'Curl martillo', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.15,10],[0.25,8],[0.33,5],[0.40,3],[0.55,1])},
+  {id:'curl_concentrado', name:'Curl concentrado', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.10,10],[0.20,8],[0.28,5],[0.35,3],[0.45,1])},
+  {id:'curl_maquina', name:'Curl en máquina', type:'weighted', tiers:t([0.30,12],[0.45,10],[0.58,8],[0.70,6],[0.90,3])},
+  {id:'curl_maquina_unilateral', name:'Curl en máquina unilateral', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.15,12],[0.25,10],[0.35,8],[0.45,6],[0.60,3])},
+  {id:'press_militar_mancuernas', name:'Press militar con mancuernas', type:'weighted', tiers:t([0.30,8],[0.45,6],[0.63,4],[0.80,3],[1.00,1])},
+  {id:'elevaciones_laterales_mancuernas', name:'Elevaciones laterales con mancuernas', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.08,12],[0.12,10],[0.16,8],[0.20,6],[0.25,3])},
+  {id:'elevaciones_laterales_polea', name:'Elevaciones laterales en polea', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.10,12],[0.15,10],[0.19,8],[0.22,6],[0.28,3])},
+  {id:'elevaciones_laterales_maquina', name:'Elevaciones laterales en máquina', type:'weighted', tiers:t([0.15,12],[0.22,10],[0.27,8],[0.32,6],[0.40,3])},
+  {id:'pajaros_mancuernas', name:'Pájaros con mancuernas', type:'weighted', perArm:true, inputLabel:'Peso por brazo (kg)',
+    tiers:t([0.06,12],[0.10,10],[0.13,8],[0.16,6],[0.22,3])},
+  {id:'flexiones', name:'Flexiones', type:'bodyweight', base:0.65, tiers:tb([0,10],[0,20],[0,30],[0,40],[0,60])},
+  {id:'flexiones_diamante', name:'Flexiones diamante', type:'bodyweight', base:0.65, tiers:tb([0,5],[0,12],[0,18],[0,25],[0,40])},
+  {id:'plancha', name:'Plancha (plank)', type:'time', hideReps:true, inputLabel:'Duración mantenida (segundos)',
+    tiers:tTime(60,120,150,180,240)},
+  {id:'plancha_lateral', name:'Plancha lateral', type:'time', hideReps:true, inputLabel:'Duración mantenida (segundos), por lado',
+    tiers:tTime(45,90,120,150,210)},
+  {id:'plancha_con_peso', name:'Plancha con peso (30s)', type:'weighted', inputLabel:'Peso añadido sobre la espalda (kg)',
+    tiers:t([0.20,1],[0.35,1],[0.43,1],[0.50,1],[0.70,1])},
+];
+
+const CATEGORIES = ['Empuje','Tirón','Pierna','Calistenia'];
+const CATEGORY_OF = {
+  press_banca:'Empuje', press_militar:'Empuje', press_militar_maquina:'Empuje', fondos:'Empuje',
+  peso_muerto:'Tirón', dominadas:'Tirón', remo_barra:'Tirón', curl_biceps:'Tirón',
+  sentadilla:'Pierna', hip_thrust:'Pierna', hack_squat:'Pierna',
+  dominadas_supinas:'Tirón', jalon_polea_ancho:'Tirón', jalon_polea_estrecho:'Tirón',
+  remo_mancuerna:'Tirón', remo_polea_estrecho:'Tirón', remo_polea_ancho:'Tirón',
+  remo_maquina_horizontal:'Tirón', remo_maquina_unilateral:'Tirón', remo_maquina_tbar:'Tirón',
+  peso_muerto_rumano:'Tirón', curl_barra_ez:'Tirón', curl_mancuernas:'Tirón',
+  curl_martillo:'Tirón', curl_concentrado:'Tirón', curl_maquina:'Tirón', curl_maquina_unilateral:'Tirón',
+  sentadilla_multipower:'Pierna', prensa_piernas:'Pierna', zancadas:'Pierna',
+  extension_cuadriceps:'Pierna', curl_femoral_tumbado:'Pierna', curl_femoral_sentado:'Pierna',
+  gemelos_de_pie:'Pierna', gemelos_sentado:'Pierna',
+  press_inclinado:'Empuje', press_mancuernas:'Empuje', press_inclinado_mancuernas:'Empuje',
+  aperturas_mancuernas:'Empuje', aperturas_maquina:'Empuje', cruces_polea:'Empuje',
+  press_frances_barra:'Empuje', press_frances_mancuernas:'Empuje',
+  extension_triceps_cuerda:'Empuje', extension_polea_recto:'Empuje', extension_polea_unilateral:'Empuje',
+  press_militar_mancuernas:'Empuje', elevaciones_laterales_mancuernas:'Empuje',
+  elevaciones_laterales_polea:'Empuje', elevaciones_laterales_maquina:'Empuje',
+  pajaros_mancuernas:'Tirón',
+  flexiones:'Calistenia', flexiones_diamante:'Calistenia', plancha:'Calistenia',
+  plancha_lateral:'Calistenia', plancha_con_peso:'Calistenia'
+};
+const PRINCIPALES_IDS = ['press_banca','sentadilla','dominadas','peso_muerto'];
+function categoryTabs(scope, current){
+  const cats = ['Todos', ...CATEGORIES, 'Principales'];
+  return `<div class="subtabs">${cats.map(c=>`<button data-cat="${scope}:${c}" class="${c===current?'active':''}">${c}</button>`).join('')}</div>`;
+}
+function filterByCategory(cat){
+  if(cat==='Todos') return EXERCISES;
+  if(cat==='Principales') return PRINCIPALES_IDS.map(id=>EXERCISES.find(e=>e.id===id));
+  return EXERCISES.filter(e=>CATEGORY_OF[e.id]===cat);
+}
+
+// ---- Nivel Global del Usuario (NGU) ----
+const NGU_TIERS = [
+  {name:'Gatito', min:0.60, emoji:'🐱'},
+  {name:'Lince', min:0.90, emoji:'🐈'},
+  {name:'Puma', min:1.20, emoji:'🐆'},
+  {name:'León', min:1.50, emoji:'🦁'},
+  {name:'Tigre de Bengala', min:2.00, emoji:'🐯'}
+];
+const NGU_COLORS = ['#8a8f98','#5b8fb0','#b5651d','#e3b341','#e8402c'];
+function nguTier(ngu){
+  let idx=-1;
+  NGU_TIERS.forEach((tier,i)=>{ if(ngu>=tier.min) idx=i; });
+  return idx;
+}
+function computeNGU(uid){
+  const bw = PROFILES[uid] && PROFILES[uid].bw;
+  const ids = ['press_banca','sentadilla','peso_muerto','dominadas'];
+  let sum=0, count=0, missing=[];
+  if(!bw) return {ngu:null, count:0, missing: ids.map(id=>EXERCISES.find(e=>e.id===id).name)};
+  ids.forEach(id=>{
+    const ex = EXERCISES.find(e=>e.id===id);
+    const b = bestLift(uid, id);
+    if(!b){ missing.push(ex.name); return; }
+    let r = b.ratio;
+    if(ex.type==='bodyweight') r = r + 1; // "peso total levantado / peso corporal", no solo el añadido
+    sum += r; count++;
+  });
+  return {ngu: count===4 ? sum/4 : null, count, missing};
+}
+function fmt2(n){ return (Math.round(n*100)/100).toString().replace('.',','); }
+
+function epley(w,r){ return r<=1 ? w : w*(1+r/30); }
+function userRatio(ex, weight, reps, bw){
+  if(ex.type==='weighted') return epley(weight,reps)/bw;
+  if(ex.type==='absolute') return epley(weight,reps);
+  if(ex.type==='time') return weight;
+  const base = ex.base!=null ? ex.base : 1;
+  return epley(base*bw+weight, reps)/bw - base;
+}
+function tierRatio(ex, tier){
+  if(ex.type==='weighted') return epley(tier.mult, tier.reps);
+  if(ex.type==='absolute') return epley(tier.weight, tier.reps);
+  if(ex.type==='time') return tier.seconds;
+  const base = ex.base!=null ? ex.base : 1;
+  return epley(base+tier.added, tier.reps) - base;
+}
+function levelFor(ex, ratio){
+  let idx=-1;
+  ex.tiers.forEach((tier,i)=>{ if(ratio >= tierRatio(ex,tier)) idx=i; });
+  return idx;
+}
+function maxScale(ex){ return tierRatio(ex, ex.tiers[4]) * 1.15; }
+function tierSegments(ex, scale){
+  const bounds = [0, ...ex.tiers.map(tier=>tierRatio(ex,tier)), scale];
+  let html = '';
+  for(let i=0;i<bounds.length-1;i++){
+    const widthPct = Math.max(0, (bounds[i+1]-bounds[i])/scale*100);
+    const color = i===0 ? 'transparent' : TIER_COLORS[i-1];
+    html += `<div class="seg" style="width:${widthPct}%;background:${color};opacity:${i===0?0:0.55};"></div>`;
+  }
+  return html;
+}
+function fmt(n){ return (Math.round(n*10)/10).toString().replace('.',','); }
+function ratioText(ex, ratio){
+  if(ex.type==='absolute') return `${fmt(ratio)} kg`;
+  if(ex.type==='time') return `${fmt(ratio)} s`;
+  return fmt(ratio);
+}
+function liftText(ex, weight, reps){
+  if(ex.type==='time') return `${fmt(weight)} s`;
+  if(ex.type==='bodyweight') return `+${fmt(weight)} kg × ${reps}`;
+  return `${fmt(weight)} kg × ${reps}`;
+}
+function fmtDateTime(ts){
+  const d = new Date(ts);
+  const date = d.toLocaleDateString('es-ES', {day:'2-digit', month:'2-digit', year:'2-digit'});
+  const time = d.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+  return `${date} · ${time}`;
+}
+function lineChartSVG(values){
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max-min) || 1;
+  const w = 300, h = 120, padX = 10, padY = 14;
+  const n = values.length;
+  const pts = values.map((v,i)=>{
+    const x = padX + (n>1 ? (i/(n-1))*(w-2*padX) : (w-2*padX)/2);
+    const y = h-padY - ((v-min)/range)*(h-2*padY);
+    return {x,y};
+  });
+  const lineStr = pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const dots = pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="var(--accent)"/>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="140" preserveAspectRatio="none">
+    <polyline points="${lineStr}" fill="none" stroke="var(--accent)" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    ${dots}
+  </svg>`;
+}
+function chartCaption(firstTs, lastTs){
+  const firstDate = fmtDateTime(firstTs).split(' · ')[0];
+  const lastDate = fmtDateTime(lastTs).split(' · ')[0];
+  return `<div class="chart-caption"><span>${firstDate}</span><span>${lastDate}</span></div>`;
+}
+function progressChart(ex, sortedEntries, bw){
+  const ratios = sortedEntries.map(l=>userRatio(ex, l.weight, l.reps, l.bw || bw));
+  return lineChartSVG(ratios) + chartCaption(sortedEntries[0].ts, sortedEntries[sortedEntries.length-1].ts);
+}
+function seriesFromEntries(ex, entries, fallbackBw){
+  return entries.map(l=>({ts:l.ts, value:userRatio(ex, l.weight, l.reps, l.bw || fallbackBw)}));
+}
+function multiLineChartSVG(seriesList){
+  const allPoints = seriesList.flatMap(s=>s.points);
+  const allTs = allPoints.map(p=>p.ts), allVals = allPoints.map(p=>p.value);
+  const minTs = Math.min(...allTs), maxTs = Math.max(...allTs), tsRange = (maxTs-minTs) || 1;
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals), vRange = (maxV-minV) || 1;
+  const w = 300, h = 120, padX = 10, padY = 14;
+  function toXY(p){
+    const x = padX + ((p.ts-minTs)/tsRange)*(w-2*padX);
+    const y = h-padY - ((p.value-minV)/vRange)*(h-2*padY);
+    return {x,y};
+  }
+  let inner = '';
+  seriesList.forEach(s=>{
+    const pts = s.points.map(toXY);
+    const lineStr = pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    const dots = pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${s.color}"/>`).join('');
+    inner += `<polyline points="${lineStr}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${dots}`;
+  });
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="140" preserveAspectRatio="none">${inner}</svg>`;
+}
+function legendHTML(items){
+  return `<div class="legend">${items.map(it=>`<span><i style="background:${it.color};"></i>${esc(it.label)}</span>`).join('')}</div>`;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function displayName(uid){ return (PROFILES[uid] && PROFILES[uid].name) || 'Usuario'; }
+
+// ---------------- state ----------------
+let currentUser = null;
+let authResolved = false;
+let profilesLoaded = false;
+let PROFILES = {};   // uid -> {name, bw}
+let LIFTS = [];       // [{id, uid, exercise, weight, reps, bw, ts}]
+let BW_HISTORY = [];  // [{id, uid, bw, ts}]
+let TAB = 'perfil';
+let HIST_EX = null;
+let PERFIL_CAT = 'Todos';
+let RANKING_CAT = 'Todos';
+let HIST_CAT = 'Todos';
+let COMPARE_UID = null;
+let unsubs = [];
+
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+function subscribeData(){
+  unsubs.push(db.collection('profiles').onSnapshot(snap=>{
+    const next = {};
+    snap.forEach(doc=>{ next[doc.id] = doc.data(); });
+    PROFILES = next;
+    profilesLoaded = true;
+    render();
+  }, err=>{ console.error(err); toast('Error leyendo perfiles.'); }));
+
+  unsubs.push(db.collection('lifts').onSnapshot(snap=>{
+    LIFTS = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, err=>{ console.error(err); toast('Error leyendo marcas.'); }));
+
+  unsubs.push(db.collection('bwHistory').onSnapshot(snap=>{
+    BW_HISTORY = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, err=>{ console.error(err); toast('Error leyendo historial de peso.'); }));
+}
+function unsubscribeData(){
+  unsubs.forEach(u=>u());
+  unsubs = [];
+  PROFILES = {}; LIFTS = []; BW_HISTORY = [];
+  profilesLoaded = false;
+}
+
+auth.onAuthStateChanged(user=>{
+  currentUser = user;
+  authResolved = true;
+  if(user) subscribeData(); else unsubscribeData();
+  render();
+});
+
+function signInGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e=>{ console.error(e); toast('No se pudo iniciar sesión.'); });
+}
+
+async function createProfile(name, bw){
+  const uid = currentUser.uid;
+  await db.collection('profiles').doc(uid).set({name, bw});
+  await db.collection('bwHistory').add({uid, bw, ts:Date.now()});
+}
+async function updateBw(n){
+  const uid = currentUser.uid;
+  await db.collection('profiles').doc(uid).update({bw:n});
+  await db.collection('bwHistory').add({uid, bw:n, ts:Date.now()});
+}
+async function saveLift(exId, weight, reps, note){
+  const uid = currentUser.uid;
+  const doc = {uid, exercise:exId, weight, reps, bw:PROFILES[uid].bw, ts:Date.now()};
+  if(note) doc.note = note;
+  await db.collection('lifts').add(doc);
+}
+async function deleteLift(id){
+  await db.collection('lifts').doc(id).delete();
+}
+async function deleteBwEntry(id){
+  await db.collection('bwHistory').doc(id).delete();
+}
+async function clearMyLifts(){
+  const uid = currentUser.uid;
+  const mine = LIFTS.filter(l=>l.uid===uid);
+  await Promise.all(mine.map(l=>db.collection('lifts').doc(l.id).delete()));
+}
+async function updatePhoto(url){
+  const uid = currentUser.uid;
+  await db.collection('profiles').doc(uid).update({photoURL: url});
+}
+async function toggleFavorite(exId){
+  const uid = currentUser.uid;
+  const current = (PROFILES[uid].favorites) || [];
+  const next = current.includes(exId) ? current.filter(id=>id!==exId) : [...current, exId];
+  await db.collection('profiles').doc(uid).update({favorites: next});
+}
+function sortFavoritesFirst(list, uid){
+  const favs = new Set((PROFILES[uid] && PROFILES[uid].favorites) || []);
+  return [...list].sort((a,b)=>{
+    const fa = favs.has(a.id) ? 0 : 1, fb = favs.has(b.id) ? 0 : 1;
+    return fa - fb;
+  });
+}
+
+function avatarUrl(uid){
+  const p = PROFILES[uid];
+  if(p && p.photoURL) return p.photoURL;
+  if(uid===currentUser.uid && currentUser.photoURL) return currentUser.photoURL;
+  return null;
+}
+function avatarHTML(uid, size){
+  const url = avatarUrl(uid);
+  if(url) return `<img class="avatar" src="${url}" alt="" style="width:${size}px;height:${size}px;">`;
+  const initial = esc((displayName(uid)||'?').charAt(0).toUpperCase());
+  return `<span class="avatar-fallback" style="width:${size}px;height:${size}px;font-size:${Math.floor(size*0.45)}px;">${initial}</span>`;
+}
+
+function csvEscape(v){
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function downloadBlob(content, mime, filename){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function myExportRows(){
+  const uid = currentUser.uid;
+  const bw = PROFILES[uid].bw;
+  return LIFTS.filter(l=>l.uid===uid).sort((a,b)=>a.ts-b.ts).map(l=>{
+    const ex = EXERCISES.find(e=>e.id===l.exercise);
+    const entryBw = l.bw || bw;
+    const r = userRatio(ex, l.weight, l.reps, entryBw);
+    return {exName: ex.name, date: fmtDateTime(l.ts), bw: fmt(entryBw), marca: liftText(ex, l.weight, l.reps), ratio: ratioText(ex, r), note: l.note || ''};
+  });
+}
+function exportCSV(){
+  const rows = myExportRows();
+  const header = ['Ejercicio','Fecha','Peso corporal (kg)','Marca','Ratio','Nota'];
+  const csv = [header, ...rows.map(r=>[r.exName, r.date, r.bw, r.marca, r.ratio, r.note])]
+    .map(row=>row.map(csvEscape).join(',')).join('\n');
+  downloadBlob(csv, 'text/csv;charset=utf-8;', `ranking-hierro-${displayName(currentUser.uid)}.csv`);
+}
+function exportPDF(){
+  const rows = myExportRows();
+  const rowsHtml = rows.map(r=>`<tr><td>${esc(r.exName)}</td><td>${esc(r.date)}</td><td>${esc(r.bw)}</td><td>${esc(r.marca)}</td><td>${esc(r.ratio)}</td><td>${esc(r.note)}</td></tr>`).join('');
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><title>Historial - ${esc(displayName(currentUser.uid))}</title>
+    <style>body{font-family:Arial,sans-serif;padding:24px;color:#222;} table{width:100%;border-collapse:collapse;margin-top:12px;}
+    th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left;} h1{font-size:18px;margin:0;}</style>
+    </head><body><h1>Historial de ${esc(displayName(currentUser.uid))} — Ranking de Hierro</h1>
+    <table><tr><th>Ejercicio</th><th>Fecha</th><th>Peso corp. (kg)</th><th>Marca</th><th>Ratio</th><th>Nota</th></tr>${rowsHtml}</table>
+    </body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+function computeFeed(limit){
+  const sorted = [...LIFTS].sort((a,b)=>a.ts-b.ts);
+  const bestByUserEx = {};
+  const bestByEx = {};
+  const events = [];
+  sorted.forEach(l=>{
+    const ex = EXERCISES.find(e=>e.id===l.exercise);
+    if(!ex) return;
+    const bw = l.bw || (PROFILES[l.uid] && PROFILES[l.uid].bw);
+    if(!bw) return;
+    const ratio = userRatio(ex, l.weight, l.reps, bw);
+    const keyUserEx = `${l.uid}|${ex.id}`;
+    const prevPersonalBest = bestByUserEx[keyUserEx];
+    const prevLeader = bestByEx[ex.id];
+    const isPR = (prevPersonalBest===undefined) || ratio > prevPersonalBest;
+    let type = 'normal', extraUid = null;
+    if(isPR && prevLeader && prevLeader.uid !== l.uid && ratio > prevLeader.ratio){
+      type = 'overtake';
+      extraUid = prevLeader.uid;
+    } else if(isPR && prevPersonalBest !== undefined){
+      type = 'pr';
+    }
+    events.push({ts:l.ts, uid:l.uid, ex, ratio, weight:l.weight, reps:l.reps, type, extraUid});
+    if(isPR) bestByUserEx[keyUserEx] = ratio;
+    if(!prevLeader || ratio > prevLeader.ratio) bestByEx[ex.id] = {uid:l.uid, ratio};
+  });
+  return events.reverse().slice(0, limit);
+}
+function feedText(ev){
+  const name = esc(displayName(ev.uid));
+  const liftTxt = liftText(ev.ex, ev.weight, ev.reps);
+  if(ev.type==='overtake') return `👑 ${name} superó a ${esc(displayName(ev.extraUid))} en ${esc(ev.ex.name)} (${liftTxt})`;
+  if(ev.type==='pr') return `🏅 ${name} batió su récord en ${esc(ev.ex.name)}: ${liftTxt}`;
+  return `📋 ${name} registró ${liftTxt} en ${esc(ev.ex.name)}`;
+}
+function renderTicker(){
+  const events = computeFeed(15);
+  if(!events.length) return `<div class="ticker-wrap"><div class="ticker-empty">Aún no hay actividad reciente — ¡sé el primero en registrar una marca!</div></div>`;
+  const items = events.map(ev=>`<span>${feedText(ev)}</span>`).join('');
+  const duration = Math.max(20, events.length * 6);
+  return `<div class="ticker-wrap"><div class="ticker-track" style="animation-duration:${duration}s;">${items}${items}</div></div>`;
+}
+
+function bestLift(uid, exId){
+  const ex = EXERCISES.find(e=>e.id===exId);
+  const lifts = LIFTS.filter(l=>l.uid===uid && l.exercise===exId);
+  if(!lifts.length) return null;
+  const bw = PROFILES[uid] && PROFILES[uid].bw;
+  if(!bw) return null;
+  let best = null, bestR = -Infinity;
+  lifts.forEach(l=>{
+    const r = userRatio(ex, l.weight, l.reps, l.bw || bw);
+    if(r > bestR){ bestR = r; best = l; }
+  });
+  return {lift:best, ratio:bestR};
+}
+
+// ---------------- render ----------------
+function render(){
+  const main = document.getElementById('main');
+  if(!authResolved){ main.innerHTML = '<div class="spin"></div>'; return; }
+  if(!currentUser){ main.innerHTML = renderSignIn(); bindSignIn(); return; }
+  if(!profilesLoaded){ main.innerHTML = '<div class="spin"></div>'; return; }
+  if(!PROFILES[currentUser.uid]){ main.innerHTML = renderOnboard(); bindOnboard(); return; }
+  main.innerHTML = renderDashboard();
+  bindDashboard();
+}
+
+function renderSignIn(){
+  return `
+    <div class="card signin-card">
+      <h2 style="margin:0 0 8px;font-size:18px;">Bienvenido</h2>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 22px;">Inicia sesión con Google para registrar y comparar vuestras marcas.</p>
+      <button class="google-btn" id="googleBtn">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.69-3.87 2.69-6.64z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.27c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.99v2.34C2.47 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.95 10.69A5.4 5.4 0 013.68 9c0-.59.1-1.16.27-1.69V4.97H.99A9 9 0 000 9c0 1.45.35 2.83.99 4.03l2.96-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.47 2.02.99 4.97l2.96 2.34C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Continuar con Google
+      </button>
+    </div>
+  `;
+}
+function bindSignIn(){
+  document.getElementById('googleBtn').addEventListener('click', signInGoogle);
+}
+
+function renderOnboard(){
+  const suggested = currentUser.displayName || '';
+  return `
+    <div class="card">
+      <h2 style="margin:0 0 4px;font-size:17px;">Completa tu perfil</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">Sesión iniciada como ${esc(currentUser.email||'')}. Solo falta tu peso corporal.</p>
+      <label>Nombre para mostrar</label>
+      <input id="newName" value="${esc(suggested)}" placeholder="Ej: Marc" />
+      <div style="margin-top:12px;">
+        <label>Tu peso corporal (kg)</label>
+        <input id="newBw" type="number" step="0.1" placeholder="Ej: 78" />
+      </div>
+      <button id="joinBtn" style="margin-top:14px;width:100%;">Guardar y entrar</button>
+      <div class="empty" id="onboardErr" style="margin-top:6px;"></div>
+    </div>
+  `;
+}
+function bindOnboard(){
+  document.getElementById('joinBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('newName').value.trim();
+    const bw = parseFloat(document.getElementById('newBw').value);
+    const err = document.getElementById('onboardErr');
+    if(!name){ err.textContent = 'Escribe un nombre.'; return; }
+    if(!bw || bw<=0){ err.textContent = 'Introduce un peso corporal válido.'; return; }
+    try{
+      await createProfile(name, bw);
+    }catch(e){ console.error(e); toast('Error al guardar tu perfil.'); }
+  });
+}
+
+function renderDashboard(){
+  const uid = currentUser.uid;
+  const bw = PROFILES[uid].bw;
+  const name = PROFILES[uid].name;
+  const favs = (PROFILES[uid].favorites) || [];
+  const favExercises = EXERCISES.filter(e=>favs.includes(e.id));
+  return `
+    <div class="topbar">
+      <div class="whoami">${avatarHTML(uid,26)}<span>Hola, <b>${esc(name)}</b> · ${fmt(bw)} kg</span></div>
+      <div style="display:flex;gap:8px;">
+        <button class="ghost small" id="changePhotoBtn">Cambiar foto</button>
+        <button class="ghost small" id="signOutBtn">Cerrar sesión</button>
+      </div>
+    </div>
+    ${renderTicker()}
+
+    <div class="card">
+      <h3 style="margin:0 0 12px;font-size:14px;">Registrar marca</h3>
+      <label>Ejercicio</label>
+      <select id="exSelect">
+        ${favExercises.length ? `<optgroup label="⭐ Favoritos">${favExercises.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</optgroup>` : ''}
+        ${CATEGORIES.map(cat=>`<optgroup label="${cat}">${EXERCISES.filter(e=>CATEGORY_OF[e.id]===cat).map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</optgroup>`).join('')}
+      </select>
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label id="weightLabel">Peso levantado (kg)</label>
+          <input id="weightInput" type="number" step="0.5" placeholder="0" />
+        </div>
+        <div id="repsGroup">
+          <label>Repeticiones</label>
+          <input id="repsInput" type="number" step="1" placeholder="1" />
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label>Nota (opcional)</label>
+        <input id="noteInput" placeholder="Ej: con cinturón, muy fácil, casi fallo..." />
+      </div>
+      <button id="saveLiftBtn" style="margin-top:14px;width:100%;">Guardar marca</button>
+    </div>
+
+    <div class="tabs">
+      <button data-tab="perfil" class="${TAB==='perfil'?'active':''}">Perfil</button>
+      <button data-tab="ranking" class="${TAB==='ranking'?'active':''}">Ranking</button>
+      <button data-tab="historial" class="${TAB==='historial'?'active':''}">Historial</button>
+    </div>
+
+    <div id="tabContent"></div>
+
+    <div class="footer-actions">
+      <button class="ghost small" id="editBw">Actualizar tu peso</button>
+      <button class="ghost small" id="clearMine">Borrar mis marcas</button>
+    </div>
+    <div class="export-actions">
+      <button class="ghost small" id="exportCsvBtn">Exportar CSV</button>
+      <button class="ghost small" id="exportPdfBtn">Exportar PDF</button>
+    </div>
+  `;
+}
+
+function renderPerfilTab(){
+  const uid = currentUser.uid;
+  const bw = PROFILES[uid].bw;
+  const nguCard = (function(){
+    const data = computeNGU(uid);
+    if(data.count < 4){
+      return `<div class="card">
+        <h3 style="margin:0 0 6px;font-size:14px;">🏆 Nivel Global (NGU)</h3>
+        <div class="empty">Te falta registrar: ${data.missing.join(', ')} para calcular tu NGU.</div>
+      </div>`;
+    }
+    const idx = nguTier(data.ngu);
+    const tier = idx>=0 ? NGU_TIERS[idx] : null;
+    const color = idx>=0 ? NGU_COLORS[idx] : 'var(--muted)';
+    const tierLabel = tier ? `${tier.emoji} ${tier.name}` : 'Sin clasificar';
+    return `<div class="card">
+      <div class="ex-head"><h3 style="margin:0;font-size:14px;">🏆 Nivel Global (NGU)</h3>
+        <span class="badge" style="background:${color};color:#0d0d0e;">${tierLabel}</span></div>
+      <div class="ex-meta" style="margin-top:8px;"><span>NGU = ${fmt2(data.ngu)}</span></div>
+    </div>`;
+  })();
+  const cards = sortFavoritesFirst(filterByCategory(PERFIL_CAT), uid).map(ex=>{
+    const isFav = ((PROFILES[uid].favorites)||[]).includes(ex.id);
+    const starBtn = `<button class="star-btn" data-fav="${ex.id}" aria-label="Favorito" title="Marcar como favorito">${isFav?'★':'☆'}</button>`;
+    const b = bestLift(uid, ex.id);
+    const scale = maxScale(ex);
+    const segs = tierSegments(ex, scale);
+    let markerLeft = 0, badge='', metaRight='', hint='';
+    if(b){
+      markerLeft = Math.min(Math.max(b.ratio/scale,0),1)*100;
+      const idx = levelFor(ex, b.ratio);
+      const lvlName = idx>=0 ? TIER_NAMES[idx] : 'Sin clasificar';
+      const lvlColor = idx>=0 ? TIER_COLORS[idx] : 'var(--muted)';
+      badge = `<span class="badge" style="background:${lvlColor};color:#0d0d0e;">${lvlName}</span>`;
+      const liftTxt = liftText(ex, b.lift.weight, b.lift.reps);
+      metaRight = `${liftTxt} · ${ratioText(ex, b.ratio)}`;
+      if(idx<4){
+        const nt = ex.tiers[idx+1];
+        const needRatio = tierRatio(ex, nt);
+        if(ex.type==='weighted'){
+          const need1RM = needRatio*bw;
+          hint = `Para ${nt.name}: ~${fmt(need1RM)} kg${ex.perArm?' por brazo':''} estimados a 1 rep (e1RM).`;
+        } else if(ex.type==='absolute'){
+          hint = `Para ${nt.name}: ~${fmt(needRatio)} kg por brazo a 1 rep (e1RM).`;
+        } else if(ex.type==='time'){
+          hint = `Para ${nt.name}: aguanta ${fmt(needRatio)} segundos.`;
+        } else {
+          const base = ex.base!=null ? ex.base : 1;
+          if(base !== 1){
+            hint = `Para ${nt.name}: consigue ${nt.reps} repeticiones seguidas.`;
+          } else {
+            const needTotal = (needRatio+base)*bw;
+            const needAdded = needTotal-bw;
+            hint = `Para ${nt.name}: ~+${fmt(needAdded)} kg añadidos a 1 rep (e1RM).`;
+          }
+        }
+      } else {
+        hint = 'Nivel máximo alcanzado. Top Mundial.';
+      }
+    } else {
+      badge = `<span class="badge" style="background:var(--surface2);color:var(--muted);">Sin marca</span>`;
+      metaRight = 'Aún no has registrado nada';
+    }
+    return `
+      <div class="ex-card">
+        <div class="ex-head"><h3>${ex.name}</h3><div style="display:flex;align-items:center;gap:8px;">${starBtn}${badge}</div></div>
+        <div class="track">${segs}<div class="marker" style="left:${markerLeft}%;"></div></div>
+        <div class="ex-meta"><span>${metaRight}</span></div>
+        ${hint?`<div class="next-hint">${hint}</div>`:''}
+      </div>
+    `;
+  }).join('');
+  return `<div class="section-title">Tu progreso</div>${nguCard}${categoryTabs('perfil', PERFIL_CAT)}${cards}`;
+}
+
+function renderHistorialTab(){
+  const uid = currentUser.uid;
+  const bw = PROFILES[uid].bw;
+  if(!HIST_EX) HIST_EX = '__bw__';
+
+  let html = `<div class="section-title">Historial por ejercicio</div>`;
+  html += categoryTabs('hist', HIST_CAT);
+  html += `<div class="subtabs">`;
+  html += `<button data-hist-ex="__bw__" class="${HIST_EX==='__bw__'?'active':''}">Peso corporal</button>`;
+  html += filterByCategory(HIST_CAT).map(e=>`<button data-hist-ex="${e.id}" class="${e.id===HIST_EX?'active':''}">${e.name}</button>`).join('');
+  html += `</div>`;
+  html += `<div class="card">`;
+
+  if(HIST_EX==='__bw__'){
+    const history = BW_HISTORY.filter(h=>h.uid===uid);
+    const sortedAsc = [...history].sort((a,b)=>a.ts-b.ts);
+    const sortedDesc = [...history].sort((a,b)=>b.ts-a.ts);
+    if(!history.length){
+      html += `<div class="empty">Aún no hay historial de peso corporal registrado.</div>`;
+    } else {
+      html += lineChartSVG(sortedAsc.map(h=>h.bw)) + chartCaption(sortedAsc[0].ts, sortedAsc[sortedAsc.length-1].ts);
+      html += `<div style="overflow-x:auto;margin-top:12px;"><table><tr><th>Fecha</th><th>Peso corporal</th><th></th></tr>`;
+      sortedDesc.forEach(h=>{
+        html += `<tr><td>${fmtDateTime(h.ts)}</td><td>${fmt(h.bw)} kg</td>
+          <td><button class="hist-del" data-del-bw="${h.id}" aria-label="Borrar entrada" title="Borrar entrada">×</button></td></tr>`;
+      });
+      html += `</table></div>`;
+    }
+  } else {
+    const ex = EXERCISES.find(e=>e.id===HIST_EX) || EXERCISES[0];
+    const entries = LIFTS.filter(l=>l.uid===uid && l.exercise===ex.id);
+    const sortedAsc = [...entries].sort((a,b)=>a.ts-b.ts);
+    const sortedDesc = [...entries].sort((a,b)=>b.ts-a.ts);
+    if(!entries.length){
+      html += `<div class="empty">Aún no has registrado marcas de ${ex.name}.</div>`;
+    } else {
+      const compareOptions = Object.keys(PROFILES).filter(u=>u!==uid && bestLift(u, ex.id));
+      html += `<div style="margin-bottom:10px;"><label>Comparar con</label>
+        <select id="compareSelect"><option value="">Nadie</option>
+        ${compareOptions.map(u=>`<option value="${u}" ${u===COMPARE_UID?'selected':''}>${esc(displayName(u))}</option>`).join('')}
+        </select></div>`;
+
+      if(COMPARE_UID && PROFILES[COMPARE_UID]){
+        const friendEntries = LIFTS.filter(l=>l.uid===COMPARE_UID && l.exercise===ex.id).sort((a,b)=>a.ts-b.ts);
+        if(friendEntries.length){
+          const mySeries = seriesFromEntries(ex, sortedAsc, bw);
+          const friendSeries = seriesFromEntries(ex, friendEntries, PROFILES[COMPARE_UID].bw);
+          html += multiLineChartSVG([
+            {points:mySeries, color:'var(--accent)'},
+            {points:friendSeries, color:'#4C8BF5'}
+          ]);
+          html += legendHTML([{color:'var(--accent)',label:'Tú'},{color:'#4C8BF5',label:displayName(COMPARE_UID)}]);
+          const allTs = [...mySeries, ...friendSeries].map(p=>p.ts);
+          html += chartCaption(Math.min(...allTs), Math.max(...allTs));
+        } else {
+          html += progressChart(ex, sortedAsc, bw);
+          html += `<div class="empty" style="margin-top:6px;">${esc(displayName(COMPARE_UID))} no tiene marcas de este ejercicio.</div>`;
+        }
+      } else {
+        html += progressChart(ex, sortedAsc, bw);
+      }
+
+      html += `<div style="overflow-x:auto;margin-top:12px;"><table><tr><th>Fecha</th><th>Peso corp.</th><th>Marca</th><th>Ratio</th><th>Nota</th><th></th></tr>`;
+      sortedDesc.forEach(l=>{
+        const entryBw = l.bw || bw;
+        const r = userRatio(ex, l.weight, l.reps, entryBw);
+        const liftTxt = liftText(ex, l.weight, l.reps);
+        html += `<tr>
+          <td>${fmtDateTime(l.ts)}</td>
+          <td>${fmt(entryBw)} kg</td>
+          <td>${liftTxt}</td>
+          <td>${ratioText(ex, r)}</td>
+          <td>${l.note ? esc(l.note) : '—'}</td>
+          <td><button class="hist-del" data-del-entry="${l.id}" aria-label="Borrar entrada" title="Borrar entrada">×</button></td>
+        </tr>`;
+      });
+      html += `</table></div>`;
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderNguBoard(){
+  const meUid = currentUser.uid;
+  const all = Object.keys(PROFILES).map(uid=>({uid, data:computeNGU(uid)}));
+  const ranked = all.filter(x=>x.data.count===4).map(x=>({uid:x.uid, ngu:x.data.ngu})).sort((a,b)=>b.ngu-a.ngu);
+  let html = `<div class="section-title">🏆 Nivel Global (NGU)</div><div class="card">`;
+  if(!ranked.length){
+    html += `<div class="empty">Aún nadie tiene registrados los 4 ejercicios principales (Press banca, Sentadilla, Peso muerto, Dominadas).</div>`;
+  } else {
+    ranked.forEach((r,i)=>{
+      const idx = nguTier(r.ngu);
+      const tier = idx>=0 ? NGU_TIERS[idx] : null;
+      const color = idx>=0 ? NGU_COLORS[idx] : 'var(--muted)';
+      const label = tier ? `${tier.emoji} ${tier.name}` : 'Sin clasificar';
+      html += `<div class="rank-row ${r.uid===meUid?'you-row':''}">${avatarHTML(r.uid,24)}<div class="rank-pos">${i+1}</div>
+        <div class="rank-name">${esc(displayName(r.uid))}</div>
+        <div class="rank-avg">NGU ${fmt2(r.ngu)} · <span class="badge" style="background:${color};color:#0d0d0e;">${label}</span></div></div>`;
+    });
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderRankingTab(){
+  const meUid = currentUser.uid;
+  let html = renderNguBoard();
+  html += `<div class="section-title">Por ejercicio</div>${categoryTabs('ranking', RANKING_CAT)}`;
+  sortFavoritesFirst(filterByCategory(RANKING_CAT), meUid).forEach(ex=>{
+    const rows = Object.keys(PROFILES).map(uid=>{
+      const b = bestLift(uid, ex.id);
+      if(!b) return null;
+      const idx = levelFor(ex, b.ratio);
+      return {uid, ratio:b.ratio, lift:b.lift, idx};
+    }).filter(Boolean).sort((a,b)=>b.ratio-a.ratio);
+    html += `<div class="card"><h3 style="margin:0 0 8px;font-size:14px;">${ex.name}</h3>`;
+    if(!rows.length){
+      html += `<div class="empty">Nadie ha registrado marca todavía.</div>`;
+    } else {
+      html += `<table><tr><th></th><th>Nombre</th><th>Marca</th><th>Nivel</th></tr>`;
+      rows.forEach((r,i)=>{
+        const liftTxt = liftText(ex, r.lift.weight, r.lift.reps);
+        const lvlName = r.idx>=0?TIER_NAMES[r.idx]:'—';
+        const lvlColor = r.idx>=0?TIER_COLORS[r.idx]:'var(--muted)';
+        html += `<tr class="${r.uid===meUid?'you-row':''}"><td class="pos">${i+1}</td><td style="display:flex;align-items:center;gap:6px;">${avatarHTML(r.uid,20)}${esc(displayName(r.uid))}</td><td>${liftTxt}</td>
+          <td><span class="badge" style="background:${lvlColor};color:#0d0d0e;">${lvlName}</span></td></tr>`;
+      });
+      html += `</table>`;
+    }
+    html += `</div>`;
+  });
+
+  html += `<div class="section-title">Clasificación general</div><div class="card">`;
+  const general = Object.keys(PROFILES).map(uid=>{
+    let sum=0, count=0, normSum=0;
+    EXERCISES.forEach(ex=>{
+      const b = bestLift(uid, ex.id);
+      if(b){
+        sum += (levelFor(ex,b.ratio)+1);
+        normSum += Math.min(Math.max(b.ratio/maxScale(ex), 0), 1);
+        count++;
+      }
+    });
+    return {uid, avg: count? sum/count : 0, count, normAvg: count? normSum/count : 0};
+  }).filter(g=>g.count>0).sort((a,b)=>b.avg-a.avg || b.count-a.count || b.normAvg-a.normAvg);
+  if(!general.length){
+    html += `<div class="empty">Aún no hay marcas registradas por nadie.</div>`;
+  } else {
+    general.forEach((g,i)=>{
+      html += `<div class="rank-row ${g.uid===meUid?'you-row':''}">${avatarHTML(g.uid,24)}<div class="rank-pos">${i+1}</div>
+        <div class="rank-name">${esc(displayName(g.uid))}</div>
+        <div class="rank-avg">Nivel medio ${fmt(g.avg)}/5 · ${g.count} ejerc. · ${fmt(g.normAvg*100)}% progreso medio</div></div>`;
+    });
+  }
+  html += `</div>`;
+  return html;
+}
+
+function bindDashboard(){
+  const exSelect = document.getElementById('exSelect');
+  const weightLabel = document.getElementById('weightLabel');
+  const repsGroup = document.getElementById('repsGroup');
+  function updateLabel(){
+    const ex = EXERCISES.find(e=>e.id===exSelect.value);
+    repsGroup.style.display = ex.hideReps ? 'none' : '';
+    if(ex.inputLabel){ weightLabel.textContent = ex.inputLabel; return; }
+    weightLabel.textContent = ex.type==='bodyweight' ? 'Peso añadido (kg, 0 si es a peso corporal)' : 'Peso levantado (kg)';
+  }
+  exSelect.addEventListener('change', updateLabel);
+  updateLabel();
+
+  document.getElementById('saveLiftBtn').addEventListener('click', async ()=>{
+    const exId = exSelect.value;
+    const ex = EXERCISES.find(e=>e.id===exId);
+    const weight = parseFloat(document.getElementById('weightInput').value);
+    const reps = ex.hideReps ? 1 : parseInt(document.getElementById('repsInput').value);
+    const note = document.getElementById('noteInput').value.trim();
+    if(isNaN(weight) || weight<0){ toast('Introduce un peso válido.'); return; }
+    if(!reps || reps<1){ toast('Introduce las repeticiones.'); return; }
+    try{
+      await saveLift(exId, weight, reps, note);
+      document.getElementById('weightInput').value='';
+      document.getElementById('repsInput').value='';
+      document.getElementById('noteInput').value='';
+      toast('Marca guardada.');
+    }catch(e){ console.error(e); toast('Error al guardar la marca.'); }
+  });
+
+  document.getElementById('changePhotoBtn').addEventListener('click', async ()=>{
+    const cur = PROFILES[currentUser.uid].photoURL || '';
+    const res = await showModal({title:'Cambiar foto', message:'Pega el enlace directo a una imagen (debe empezar por http:// o https://).', showInput:true, inputType:'text', inputLabel:'URL de la imagen', inputValue:cur, confirmText:'Guardar'});
+    if(!res.confirmed) return;
+    const url = (res.value||'').trim();
+    if(url && !/^https?:\/\//.test(url)){ toast('La URL debe empezar por http:// o https://'); return; }
+    try{ await updatePhoto(url); }catch(e){ console.error(e); toast('Error al actualizar la foto.'); }
+  });
+
+  document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
+    if(!LIFTS.some(l=>l.uid===currentUser.uid)){ toast('Aún no tienes marcas para exportar.'); return; }
+    exportCSV();
+  });
+  document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+    if(!LIFTS.some(l=>l.uid===currentUser.uid)){ toast('Aún no tienes marcas para exportar.'); return; }
+    exportPDF();
+  });
+
+  document.getElementById('signOutBtn').addEventListener('click', ()=> auth.signOut());
+
+  document.getElementById('editBw').addEventListener('click', async ()=>{
+    const cur = PROFILES[currentUser.uid].bw;
+    const res = await showModal({title:'Actualizar tu peso', showInput:true, inputType:'number', inputStep:'0.1', inputLabel:'Peso corporal (kg)', inputValue:cur, confirmText:'Guardar'});
+    if(!res.confirmed) return;
+    const n = parseFloat(res.value);
+    if(!n || n<=0){ toast('Peso no válido.'); return; }
+    try{ await updateBw(n); }catch(e){ console.error(e); toast('Error al actualizar el peso.'); }
+  });
+
+  document.getElementById('clearMine').addEventListener('click', async ()=>{
+    const res = await showModal({title:'Borrar tus marcas', message:'¿Seguro que quieres borrar todas tus marcas registradas? Esta acción no se puede deshacer.', confirmText:'Borrar'});
+    if(!res.confirmed) return;
+    try{ await clearMyLifts(); }catch(e){ console.error(e); toast('Error al borrar tus marcas.'); }
+  });
+
+  document.querySelectorAll('[data-tab]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      TAB = b.dataset.tab;
+      render();
+    });
+  });
+
+  renderTabContent();
+}
+
+function renderTabContent(){
+  const html = TAB==='perfil' ? renderPerfilTab() : TAB==='ranking' ? renderRankingTab() : renderHistorialTab();
+  document.getElementById('tabContent').innerHTML = html;
+
+  document.querySelectorAll('[data-del-entry]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const res = await showModal({title:'Borrar entrada', message:'¿Borrar esta entrada del historial? Esta acción no se puede deshacer.', confirmText:'Borrar'});
+      if(!res.confirmed) return;
+      try{ await deleteLift(b.dataset.delEntry); }catch(e){ console.error(e); toast('Error al borrar la entrada.'); }
+    });
+  });
+
+  document.querySelectorAll('[data-hist-ex]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      HIST_EX = b.dataset.histEx;
+      COMPARE_UID = null;
+      renderTabContent();
+    });
+  });
+
+  const compareSelect = document.getElementById('compareSelect');
+  if(compareSelect){
+    compareSelect.addEventListener('change', ()=>{
+      COMPARE_UID = compareSelect.value || null;
+      renderTabContent();
+    });
+  }
+
+  document.querySelectorAll('[data-fav]').forEach(b=>{
+    b.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      try{ await toggleFavorite(b.dataset.fav); }catch(err){ console.error(err); toast('Error al actualizar favorito.'); }
+    });
+  });
+
+  document.querySelectorAll('[data-del-bw]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const res = await showModal({title:'Borrar entrada', message:'¿Borrar este registro de peso corporal? Esta acción no se puede deshacer.', confirmText:'Borrar'});
+      if(!res.confirmed) return;
+      try{ await deleteBwEntry(b.dataset.delBw); }catch(e){ console.error(e); toast('Error al borrar la entrada.'); }
+    });
+  });
+
+  document.querySelectorAll('[data-cat]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const [scope, cat] = b.dataset.cat.split(':');
+      if(scope==='perfil') PERFIL_CAT = cat;
+      if(scope==='ranking') RANKING_CAT = cat;
+      if(scope==='hist') HIST_CAT = cat;
+      renderTabContent();
+    });
+  });
+}
+
+function showModal(opts){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <h3>${esc(opts.title||'')}</h3>
+        ${opts.message?`<p>${esc(opts.message)}</p>`:''}
+        ${opts.showInput?`<label>${esc(opts.inputLabel||'')}</label><input id="modalInput" type="${opts.inputType||'text'}" step="${opts.inputStep||'any'}" value="${opts.inputValue!=null?esc(String(opts.inputValue)):''}" />`:''}
+        <div class="modal-actions">
+          <button class="ghost" id="modalCancel">${esc(opts.cancelText||'Cancelar')}</button>
+          <button id="modalConfirm">${esc(opts.confirmText||'Aceptar')}</button>
+        </div>
+      </div>
+    `;
+    overlay.classList.add('show');
+    const input = document.getElementById('modalInput');
+    if(input){ input.focus(); input.select(); }
+    function cleanup(result){
+      overlay.classList.remove('show');
+      overlay.innerHTML = '';
+      resolve(result);
+    }
+    document.getElementById('modalCancel').addEventListener('click', ()=>cleanup({confirmed:false}));
+    document.getElementById('modalConfirm').addEventListener('click', ()=>{
+      cleanup({confirmed:true, value: input ? input.value : null});
+    });
+    overlay.addEventListener('click', (e)=>{ if(e.target===overlay) cleanup({confirmed:false}); }, {once:true});
+    if(input){
+      input.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){ e.preventDefault(); document.getElementById('modalConfirm').click(); }
+      });
+    }
+  });
+}
+
+render();
+
+})();
+</script>
+</body>
+</html>
