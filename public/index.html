@@ -102,11 +102,23 @@
   .modal-overlay.show{display:flex;}
   .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;
     max-width:340px;width:100%;}
+  .modal-box.large{max-width:520px;max-height:82vh;overflow-y:auto;text-align:left;}
   .modal-box h3{margin:0 0 10px;font-size:16px;color:var(--chalk);}
   .modal-box p{margin:0 0 14px;font-size:13.5px;color:var(--muted);line-height:1.4;}
   .modal-box input{margin-bottom:4px;}
   .modal-actions{display:flex;gap:10px;margin-top:16px;}
   .modal-actions button{flex:1;}
+  .changelog-fab{position:fixed;bottom:20px;right:20px;width:52px;height:52px;border-radius:50%;
+    background:var(--accent);color:#fff;border:none;font-size:22px;cursor:pointer;z-index:60;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.45);}
+  .changelog-fab:hover{filter:brightness(1.1);}
+  .changelog-section{margin-top:16px;}
+  .changelog-section:first-child{margin-top:0;}
+  .changelog-section h4{font-family:'Oswald',sans-serif;font-size:13px;color:var(--accent);
+    text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
+  .changelog-item{font-size:13px;color:var(--chalk);line-height:1.5;padding:6px 0;border-bottom:1px solid var(--line);}
+  .changelog-item:last-child{border-bottom:none;}
+  .changelog-item b{color:var(--chalk);}
   .subtabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-top:2px;-webkit-overflow-scrolling:touch;}
   .subtabs button{flex:0 0 auto;background:var(--surface2);color:var(--muted);border:1px solid var(--line);
     font-family:'Inter',sans-serif;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;
@@ -179,6 +191,7 @@
 <div class="toast" id="toast"></div>
 <div class="modal-overlay" id="modalOverlay"></div>
 <div class="medal-overlay" id="medalOverlay"></div>
+<button id="changelogBtn" class="changelog-fab" title="Ver novedades">🆕</button>
 
 <!-- Firebase SDK (compat, no build step needed) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -560,6 +573,11 @@ let COMPARE_SELECTIONS = {};
 let VIEW_PROFILE_UID = null;
 let COMPARE_PROFILE_ACTIVE = false;
 let FEED_OPEN_COMMENTS = new Set();
+let MEALS = [];
+let NUTRITION_SETTINGS = {};
+let MEAL_HISTORY_EXPANDED = new Set();
+let foodSearchTimer = null;
+let foodSearchSelected = null;
 let unsubs = [];
 
 function toast(msg){
@@ -614,11 +632,24 @@ function subscribeData(){
     MEDAL_EARNED = next;
     render();
   }, err=>{ console.error(err); toast('Error leyendo medallas.'); }));
+
+  unsubs.push(db.collection('nutrition').onSnapshot(snap=>{
+    const next = {};
+    snap.forEach(doc=>{ next[doc.id] = doc.data(); });
+    NUTRITION_SETTINGS = next;
+    render();
+  }, err=>{ console.error(err); toast('Error leyendo ajustes de nutrición.'); }));
+
+  unsubs.push(db.collection('meals').onSnapshot(snap=>{
+    MEALS = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, err=>{ console.error(err); toast('Error leyendo comidas.'); }));
 }
 function unsubscribeData(){
   unsubs.forEach(u=>u());
   unsubs = [];
   PROFILES = {}; LIFTS = []; BW_HISTORY = []; REACTIONS = []; COMMENTS = []; MEDAL_EARNED = [];
+  MEALS = []; NUTRITION_SETTINGS = {};
   seenMedalDocIds = null;
   profilesLoaded = false;
 }
@@ -682,20 +713,22 @@ function signInGoogle(){
   auth.signInWithPopup(provider).catch(e=>{ console.error(e); toast('No se pudo iniciar sesión.'); });
 }
 
-async function createProfile(name, bw, height, sex){
+async function createProfile(name, bw, height, sex, birthday){
   const uid = currentUser.uid;
   const data = {name, bw};
   if(height!=null) data.height = height;
   if(sex) data.sex = sex;
+  if(birthday) data.birthday = birthday;
   await db.collection('profiles').doc(uid).set(data);
   await db.collection('bwHistory').add({uid, bw, ts:Date.now()});
 }
-async function updateProfileDetails(bw, height, sex){
+async function updateProfileDetails(bw, height, sex, birthday){
   const uid = currentUser.uid;
   const prevBw = PROFILES[uid].bw;
   const data = {bw, sex: sex || ''};
   if(height!=null && !isNaN(height)) data.height = height;
   else data.height = firebase.firestore.FieldValue.delete();
+  if(birthday) data.birthday = birthday;
   await db.collection('profiles').doc(uid).update(data);
   if(bw !== prevBw){
     await db.collection('bwHistory').add({uid, bw, ts:Date.now()});
@@ -888,11 +921,275 @@ function renderCommentsBlock(liftId, comments){
   </div>`;
   return html;
 }
+function getTodaysBirthdays(){
+  const now = new Date();
+  const results = [];
+  Object.keys(PROFILES).forEach(uid=>{
+    const p = PROFILES[uid];
+    if(!p.birthday) return;
+    const bd = new Date(p.birthday+'T00:00:00');
+    if(bd.getMonth()===now.getMonth() && bd.getDate()===now.getDate()){
+      results.push({uid, age: now.getFullYear()-bd.getFullYear()});
+    }
+  });
+  return results;
+}
+function renderNutritionCalculator(uid){
+  const p = PROFILES[uid];
+  let html = `<div class="card"><h3 style="margin:0 0 10px;font-size:14px;">🍎 Calculadora de calorías y macros</h3>`;
+  if(!p.height || !p.birthday){
+    html += `<div class="empty">Necesitas tener altura y fecha de nacimiento guardadas en tu perfil para calcular esto (Mi perfil → Editar perfil).</div></div>`;
+    return html;
+  }
+  const settings = NUTRITION_SETTINGS[uid] || {};
+  const plan = computeNutritionPlan(uid);
+  html += `
+    <label>Nivel de actividad</label>
+    <select id="nutriActivity">
+      ${ACTIVITY_LEVELS.map(a=>`<option value="${a.id}" ${settings.activityLevel===a.id?'selected':''}>${a.label}</option>`).join('')}
+    </select>
+    <div class="row" style="margin-top:12px;">
+      <div>
+        <label>Objetivo</label>
+        <select id="nutriGoal">
+          <option value="bajar" ${settings.goal==='bajar'?'selected':''}>Bajar de peso</option>
+          <option value="mantener" ${(!settings.goal||settings.goal==='mantener')?'selected':''}>Mantener</option>
+          <option value="subir" ${settings.goal==='subir'?'selected':''}>Subir de peso</option>
+        </select>
+      </div>
+      <div>
+        <label>Ritmo</label>
+        <select id="nutriRate">
+          <option value="suave" ${settings.goalRate==='suave'?'selected':''}>Suave</option>
+          <option value="moderado" ${(!settings.goalRate||settings.goalRate==='moderado')?'selected':''}>Moderado</option>
+          <option value="agresivo" ${settings.goalRate==='agresivo'?'selected':''}>Agresivo</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <label>Peso objetivo (kg, opcional)</label>
+      <input id="nutriTarget" type="number" step="0.1" value="${settings.targetWeight||''}" placeholder="Ej: 75" />
+    </div>
+    <button id="nutriSaveBtn" style="margin-top:14px;width:100%;">Calcular y guardar</button>
+  `;
+  if(plan){
+    html += `
+      <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
+        <div class="ex-meta"><span>BMR (metabolismo basal)</span><span>${fmt(plan.bmr)} kcal</span></div>
+        <div class="ex-meta"><span>TDEE (gasto total diario)</span><span>${fmt(plan.tdee)} kcal</span></div>
+        <div class="ex-meta" style="margin-top:8px;"><span><b style="color:var(--chalk);">Objetivo diario</b></span><span><b style="color:var(--accent);">${fmt(plan.calorieTarget)} kcal</b></span></div>
+        <div class="ex-meta"><span>Proteína</span><span>${fmt(plan.proteinG)} g</span></div>
+        <div class="ex-meta"><span>Carbohidratos</span><span>${fmt(plan.carbsG)} g</span></div>
+        <div class="ex-meta"><span>Grasas</span><span>${fmt(plan.fatG)} g</span></div>
+        ${plan.weeksToGoal ? `<div class="next-hint">A este ritmo, alcanzarías tu peso objetivo en ~${Math.round(plan.weeksToGoal)} semanas.</div>` : ''}
+      </div>
+    `;
+  }
+  html += `</div>`;
+  return html;
+}
+function renderMealLogger(){
+  return `<div class="card">
+    <h3 style="margin:0 0 10px;font-size:14px;">🍽️ Registrar comida</h3>
+    <label>Buscar alimento</label>
+    <input id="foodSearchInput" type="text" placeholder="Ej: pechuga de pollo, arroz, manzana..." autocomplete="off" />
+    <div id="foodSearchResults" style="margin-top:8px;"></div>
+    <div id="foodSelectedBlock"></div>
+    <div style="font-size:10.5px;color:var(--muted);margin-top:10px;">Datos de alimentos vía Open Food Facts</div>
+  </div>`;
+}
+function renderNutritionSummary(uid){
+  const plan = computeNutritionPlan(uid);
+  const todayKey = dateKey(Date.now());
+  const todaysMeals = MEALS.filter(m=>m.uid===uid && dateKey(m.ts)===todayKey);
+  const totals = todaysMeals.reduce((acc,m)=>({kcal:acc.kcal+m.kcal, protein:acc.protein+m.protein, carbs:acc.carbs+m.carbs, fat:acc.fat+m.fat}), {kcal:0,protein:0,carbs:0,fat:0});
+  function bar(label, current, target, color){
+    const pct = target ? Math.min(100,(current/target)*100) : 0;
+    return `<div style="margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);"><span>${label}</span><span>${fmt(current)}${target?' / '+fmt(target):''}</span></div>
+      <div class="track" style="margin-top:4px;"><div class="seg" style="width:${pct}%;background:${color};opacity:0.75;"></div></div>
+    </div>`;
+  }
+  let html = `<div class="card"><h3 style="margin:0 0 6px;font-size:14px;">📊 Resumen de hoy</h3>`;
+  if(!todaysMeals.length){
+    html += `<div class="empty">Aún no has registrado comidas hoy.</div>`;
+  } else {
+    html += bar('Calorías (kcal)', totals.kcal, plan?plan.calorieTarget:null, 'var(--accent)');
+    html += bar('Proteína (g)', totals.protein, plan?plan.proteinG:null, 'var(--t-intermedio)');
+    html += bar('Carbohidratos (g)', totals.carbs, plan?plan.carbsG:null, 'var(--t-avanzado)');
+    html += bar('Grasas (g)', totals.fat, plan?plan.fatG:null, 'var(--t-top)');
+  }
+  html += `</div>`;
+  return html;
+}
+function renderMealHistory(uid){
+  const myMeals = MEALS.filter(m=>m.uid===uid).sort((a,b)=>b.ts-a.ts);
+  const byDay = {};
+  myMeals.forEach(m=>{
+    const k = dateKey(m.ts);
+    if(!byDay[k]) byDay[k]=[];
+    byDay[k].push(m);
+  });
+  const days = Object.keys(byDay).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+  let html = `<div class="section-title">Historial de comidas</div>`;
+  if(!days.length){
+    html += `<div class="card"><div class="empty">Aún no has registrado ninguna comida.</div></div>`;
+    return html;
+  }
+  days.forEach(day=>{
+    const meals = byDay[day];
+    const totalKcal = meals.reduce((s,m)=>s+m.kcal,0);
+    const isOpen = MEAL_HISTORY_EXPANDED.has(day);
+    const dateLabel = new Date(day+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long', day:'2-digit', month:'2-digit'});
+    html += `<div class="ex-card">
+      <div class="ex-head" data-toggle-mealday="${day}" style="cursor:pointer;">
+        <h3 style="text-transform:capitalize;">${dateLabel}</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="badge" style="background:var(--surface2);color:var(--muted);">${fmt(totalKcal)} kcal</span>
+          <span style="color:var(--muted);font-size:11px;">${isOpen?'▲':'▼'}</span>
+        </div>
+      </div>`;
+    if(isOpen){
+      html += `<div style="margin-top:10px;">`;
+      meals.forEach(m=>{
+        html += `<div class="hist-row">
+          <span class="hd-lift"><b>${esc(m.mealType||'')}</b> · ${esc(m.name)} (${fmt(m.grams)}g) — ${fmt(m.kcal)} kcal</span>
+          <button class="hist-del" data-del-meal="${m.id}" title="Borrar">×</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+  });
+  return html;
+}
+function renderNutritionTab(){
+  const uid = currentUser.uid;
+  return renderNutritionCalculator(uid) + renderMealLogger() + renderNutritionSummary(uid) + renderMealHistory(uid);
+}
+function bindFoodSearchInput(){
+  const input = document.getElementById('foodSearchInput');
+  if(!input) return;
+  input.addEventListener('input', ()=>{
+    clearTimeout(foodSearchTimer);
+    const q = input.value.trim();
+    const resultsEl = document.getElementById('foodSearchResults');
+    if(q.length<3){ resultsEl.innerHTML=''; return; }
+    resultsEl.innerHTML = `<div class="empty">Buscando...</div>`;
+    foodSearchTimer = setTimeout(()=>doFoodSearch(q), 500);
+  });
+}
+async function doFoodSearch(query){
+  const resultsEl = document.getElementById('foodSearchResults');
+  if(!resultsEl) return;
+  try{
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=8`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const products = (data.products||[]).filter(p=>p.product_name && p.nutriments && p.nutriments['energy-kcal_100g']!=null);
+    if(!products.length){ resultsEl.innerHTML = `<div class="empty">Sin resultados. Prueba con otro término.</div>`; return; }
+    resultsEl.innerHTML = products.map((p,i)=>`
+      <div class="medal-row" style="cursor:pointer;" data-pick-food="${i}">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${esc(p.product_name)}</div>
+          <div style="font-size:11px;color:var(--muted);">${esc(p.brands||'')}${p.brands?' · ':''}${fmt(p.nutriments['energy-kcal_100g'])} kcal/100g</div>
+        </div>
+      </div>
+    `).join('');
+    resultsEl.querySelectorAll('[data-pick-food]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        selectFood(products[parseInt(el.dataset.pickFood)]);
+      });
+    });
+  }catch(e){
+    console.error(e);
+    resultsEl.innerHTML = `<div class="empty">Error al buscar. Comprueba tu conexión.</div>`;
+  }
+}
+function selectFood(product){
+  foodSearchSelected = {
+    name: product.product_name,
+    kcal100: product.nutriments['energy-kcal_100g']||0,
+    protein100: product.nutriments['proteins_100g']||0,
+    carbs100: product.nutriments['carbohydrates_100g']||0,
+    fat100: product.nutriments['fat_100g']||0
+  };
+  renderSelectedFoodBlock();
+}
+function renderSelectedFoodBlock(){
+  const block = document.getElementById('foodSelectedBlock');
+  if(!block) return;
+  if(!foodSearchSelected){ block.innerHTML=''; return; }
+  block.innerHTML = `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">${esc(foodSearchSelected.name)}</div>
+      <div class="row">
+        <div>
+          <label>Cantidad (g)</label>
+          <input id="foodGrams" type="number" step="1" value="100" />
+        </div>
+        <div>
+          <label>Comida</label>
+          <select id="foodMealType">
+            <option value="Desayuno">Desayuno</option>
+            <option value="Comida">Comida</option>
+            <option value="Cena">Cena</option>
+            <option value="Snack">Snack</option>
+          </select>
+        </div>
+      </div>
+      <div id="foodQuantitySummary" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
+      <button id="foodSaveBtn" style="margin-top:10px;width:100%;">Guardar comida</button>
+    </div>
+  `;
+  const gramsInput = document.getElementById('foodGrams');
+  function updateSummary(){
+    const g = parseFloat(gramsInput.value)||0;
+    const f = foodSearchSelected;
+    const kcal=f.kcal100*g/100, protein=f.protein100*g/100, carbs=f.carbs100*g/100, fat=f.fat100*g/100;
+    document.getElementById('foodQuantitySummary').textContent = `${fmt(kcal)} kcal · P ${fmt(protein)}g · C ${fmt(carbs)}g · G ${fmt(fat)}g`;
+  }
+  gramsInput.addEventListener('input', updateSummary);
+  updateSummary();
+  document.getElementById('foodSaveBtn').addEventListener('click', async ()=>{
+    const g = parseFloat(gramsInput.value);
+    if(!g || g<=0){ toast('Introduce una cantidad válida.'); return; }
+    const mealType = document.getElementById('foodMealType').value;
+    const f = foodSearchSelected;
+    const entry = {
+      uid: currentUser.uid,
+      name: f.name,
+      grams: g,
+      kcal: f.kcal100*g/100,
+      protein: f.protein100*g/100,
+      carbs: f.carbs100*g/100,
+      fat: f.fat100*g/100,
+      mealType,
+      ts: Date.now()
+    };
+    try{
+      await db.collection('meals').add(entry);
+      foodSearchSelected = null;
+      toast('Comida registrada.');
+      renderTabContent();
+    }catch(e){ console.error(e); toast('Error al guardar.'); }
+  });
+}
+
 function renderFeedTab(){
   const events = computeFeed(40);
   FEED_EVENTS_CACHE = {};
   events.forEach(ev=>{ FEED_EVENTS_CACHE[ev.id] = ev; });
   let html = `<div class="section-title">Actividad reciente</div>`;
+  const birthdays = getTodaysBirthdays();
+  if(birthdays.length){
+    html += birthdays.map(b=>`<div class="card" style="background:linear-gradient(135deg, rgba(227,179,65,0.15), var(--surface));border-color:#E3B341;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        ${avatarHTML(b.uid,36)}
+        <div style="font-size:14px;">🎂 <b>${esc(displayName(b.uid))}</b> está de cumpleaños hoy — ¡${b.age} años!</div>
+      </div>
+    </div>`).join('');
+  }
   if(!events.length){
     html += `<div class="card"><div class="empty">Aún no hay actividad — ¡sé el primero en registrar una marca!</div></div>`;
     return html;
@@ -945,12 +1242,20 @@ function bestLift(uid, exId){
 }
 
 // ---------------- render ----------------
+function profileNeedsCompletion(p){
+  return !p.height || !p.sex || !p.birthday;
+}
 function render(){
   const main = document.getElementById('main');
   if(!authResolved){ main.innerHTML = '<div class="spin"></div>'; return; }
   if(!currentUser){ main.innerHTML = renderSignIn(); bindSignIn(); return; }
   if(!profilesLoaded){ main.innerHTML = '<div class="spin"></div>'; return; }
   if(!PROFILES[currentUser.uid]){ main.innerHTML = renderOnboard(); bindOnboard(); return; }
+  if(profileNeedsCompletion(PROFILES[currentUser.uid])){
+    main.innerHTML = renderProfileCompletionScreen(PROFILES[currentUser.uid]);
+    bindProfileCompletionScreen();
+    return;
+  }
   if(VIEW_PROFILE_UID && PROFILES[VIEW_PROFILE_UID]){
     main.innerHTML = renderUserProfileScreen(VIEW_PROFILE_UID);
     bindUserProfileScreen();
@@ -958,6 +1263,49 @@ function render(){
   }
   main.innerHTML = renderDashboard();
   bindDashboard();
+}
+function renderProfileCompletionScreen(p){
+  return `
+    <div class="card">
+      <h2 style="margin:0 0 8px;font-size:18px;">Completa tu perfil</h2>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 14px;line-height:1.4;">
+        Necesitamos estos datos para activar funciones nuevas (estándares por sexo, aviso de cumpleaños en el Feed...).
+        Es un paso único.
+      </p>
+      <label>Altura (cm)</label>
+      <input id="fillHeight" type="number" step="0.5" value="${p.height!=null?p.height:''}" placeholder="Ej: 178" />
+      <div style="margin-top:12px;">
+        <label>Sexo</label>
+        <select id="fillSex">
+          <option value="" ${!p.sex?'selected':''} disabled>Selecciona...</option>
+          <option value="Hombre" ${p.sex==='Hombre'?'selected':''}>Hombre</option>
+          <option value="Mujer" ${p.sex==='Mujer'?'selected':''}>Mujer</option>
+          <option value="Otro" ${p.sex==='Otro'?'selected':''}>Otro</option>
+          <option value="Prefiero no decirlo" ${p.sex==='Prefiero no decirlo'?'selected':''}>Prefiero no decirlo</option>
+        </select>
+      </div>
+      <div style="margin-top:12px;">
+        <label>Fecha de nacimiento</label>
+        <input id="fillBirthday" type="date" value="${p.birthday||''}" />
+      </div>
+      <button id="fillSaveBtn" style="margin-top:16px;width:100%;">Guardar y continuar</button>
+      <div class="empty" id="fillErr" style="margin-top:6px;"></div>
+    </div>
+  `;
+}
+function bindProfileCompletionScreen(){
+  document.getElementById('fillSaveBtn').addEventListener('click', async ()=>{
+    const err = document.getElementById('fillErr');
+    const height = parseFloat(document.getElementById('fillHeight').value);
+    const sex = document.getElementById('fillSex').value;
+    const birthday = document.getElementById('fillBirthday').value;
+    if(!height || height<=0){ err.textContent = 'Introduce una altura válida.'; return; }
+    if(!sex){ err.textContent = 'Selecciona una opción de sexo.'; return; }
+    if(!birthday){ err.textContent = 'Introduce tu fecha de nacimiento.'; return; }
+    try{
+      await updateProfileDetails(PROFILES[currentUser.uid].bw, height, sex, birthday);
+    }catch(e){ console.error(e); err.textContent = 'Error al guardar. Prueba de nuevo.'; }
+  });
 }
 
 function bindUserProfileScreen(){
@@ -1034,18 +1382,23 @@ function renderOnboard(){
           <input id="newBw" type="number" step="0.1" placeholder="Ej: 78" />
         </div>
         <div>
-          <label>Altura (cm, opcional)</label>
+          <label>Altura (cm)</label>
           <input id="newHeight" type="number" step="0.5" placeholder="Ej: 178" />
         </div>
       </div>
       <div style="margin-top:12px;">
-        <label>Sexo (opcional)</label>
+        <label>Sexo</label>
         <select id="newSex">
-          <option value="">Prefiero no decirlo</option>
+          <option value="" selected disabled>Selecciona...</option>
           <option value="Hombre">Hombre</option>
           <option value="Mujer">Mujer</option>
           <option value="Otro">Otro</option>
+          <option value="Prefiero no decirlo">Prefiero no decirlo</option>
         </select>
+      </div>
+      <div style="margin-top:12px;">
+        <label>Fecha de nacimiento</label>
+        <input id="newBirthday" type="date" />
       </div>
       <button id="joinBtn" style="margin-top:14px;width:100%;">Guardar y entrar</button>
       <div class="empty" id="onboardErr" style="margin-top:6px;"></div>
@@ -1058,11 +1411,15 @@ function bindOnboard(){
     const bw = parseFloat(document.getElementById('newBw').value);
     const heightRaw = parseFloat(document.getElementById('newHeight').value);
     const sex = document.getElementById('newSex').value;
+    const birthday = document.getElementById('newBirthday').value;
     const err = document.getElementById('onboardErr');
     if(!name){ err.textContent = 'Escribe un nombre.'; return; }
     if(!bw || bw<=0){ err.textContent = 'Introduce un peso corporal válido.'; return; }
+    if(!heightRaw || heightRaw<=0){ err.textContent = 'Introduce una altura válida.'; return; }
+    if(!sex){ err.textContent = 'Selecciona una opción de sexo.'; return; }
+    if(!birthday){ err.textContent = 'Introduce tu fecha de nacimiento.'; return; }
     try{
-      await createProfile(name, bw, isNaN(heightRaw)?null:heightRaw, sex);
+      await createProfile(name, bw, heightRaw, sex, birthday);
     }catch(e){ console.error(e); toast('Error al guardar tu perfil.'); }
   });
 }
@@ -1111,6 +1468,7 @@ function renderDashboard(){
       <button data-tab="perfil" class="${TAB==='perfil'?'active':''}">Perfil</button>
       <button data-tab="ranking" class="${TAB==='ranking'?'active':''}">Ranking</button>
       <button data-tab="feed" class="${TAB==='feed'?'active':''}">Feed</button>
+      <button data-tab="nutricion" class="${TAB==='nutricion'?'active':''}">Nutrición</button>
     </div>
 
     <div id="tabContent"></div>
@@ -1356,6 +1714,73 @@ function heatColor(intensity){
 function dateKey(ts){
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+const ACTIVITY_LEVELS = [
+  {id:'sedentario', label:'Sedentario (poco o ningún ejercicio)', mult:1.2},
+  {id:'ligero', label:'Ligero (ejercicio 1-3 días/semana)', mult:1.375},
+  {id:'moderado', label:'Moderado (ejercicio 3-5 días/semana)', mult:1.55},
+  {id:'activo', label:'Activo (ejercicio 6-7 días/semana)', mult:1.725},
+  {id:'muy_activo', label:'Muy activo (ejercicio intenso + trabajo físico)', mult:1.9}
+];
+const GOAL_RATES = {suave:0.10, moderado:0.20, agresivo:0.25};
+function getAge(uid){
+  const p = PROFILES[uid];
+  if(!p || !p.birthday) return null;
+  const bd = new Date(p.birthday+'T00:00:00');
+  const now = new Date();
+  let age = now.getFullYear()-bd.getFullYear();
+  const hadBirthday = (now.getMonth()>bd.getMonth()) || (now.getMonth()===bd.getMonth() && now.getDate()>=bd.getDate());
+  if(!hadBirthday) age--;
+  return age;
+}
+function computeBMR(uid){
+  const p = PROFILES[uid];
+  const age = getAge(uid);
+  if(!p || !p.bw || !p.height || age==null) return null;
+  const base = 10*p.bw + 6.25*p.height - 5*age;
+  if(p.sex==='Hombre') return base+5;
+  if(p.sex==='Mujer') return base-161;
+  return base-78;
+}
+function computeNutritionPlan(uid){
+  const bmr = computeBMR(uid);
+  if(bmr==null) return null;
+  const settings = NUTRITION_SETTINGS[uid] || {};
+  const activity = ACTIVITY_LEVELS.find(a=>a.id===settings.activityLevel) || ACTIVITY_LEVELS[1];
+  const tdee = bmr*activity.mult;
+  const goal = settings.goal || 'mantener';
+  const rate = GOAL_RATES[settings.goalRate] || GOAL_RATES.moderado;
+  let pct = 0;
+  if(goal==='bajar') pct = -rate;
+  else if(goal==='subir') pct = rate;
+  const calorieTarget = tdee*(1+pct);
+  const bw = PROFILES[uid].bw;
+  const proteinG = bw*1.8;
+  const proteinKcal = proteinG*4;
+  let fatKcal = calorieTarget*0.25;
+  let fatG = fatKcal/9;
+  let carbsKcal = calorieTarget - proteinKcal - fatKcal;
+  if(carbsKcal < 0){ fatKcal = calorieTarget*0.20; fatG = fatKcal/9; carbsKcal = calorieTarget-proteinKcal-fatKcal; }
+  const carbsG = Math.max(0, carbsKcal/4);
+  let weeksToGoal = null;
+  if(settings.targetWeight){
+    const diff = settings.targetWeight - bw;
+    const weeklyChangeKg = (calorieTarget-tdee)*7/7700;
+    if(Math.abs(weeklyChangeKg) > 0.01 && Math.sign(weeklyChangeKg)===Math.sign(diff)){
+      weeksToGoal = Math.abs(diff/weeklyChangeKg);
+    }
+  }
+  return {bmr, tdee, calorieTarget, proteinG, fatG, carbsG, weeksToGoal, activity, goal, rate: settings.goalRate||'moderado', targetWeight: settings.targetWeight};
+}
+async function saveNutritionSettings(activityLevel, goal, goalRate, targetWeight){
+  const uid = currentUser.uid;
+  const data = {activityLevel, goal, goalRate};
+  if(targetWeight) data.targetWeight = targetWeight;
+  else data.targetWeight = firebase.firestore.FieldValue.delete();
+  await db.collection('nutrition').doc(uid).set(data, {merge:true});
+}
+async function deleteMeal(id){
+  await db.collection('meals').doc(id).delete();
 }
 function computeDailyActivity(uid){
   const map = {};
@@ -2010,8 +2435,37 @@ function bindDashboard(){
 }
 
 function renderTabContent(){
-  const html = TAB==='perfil' ? renderPerfilTab() : TAB==='ranking' ? renderRankingTab() : renderFeedTab();
+  const html = TAB==='perfil' ? renderPerfilTab() : TAB==='ranking' ? renderRankingTab() : TAB==='feed' ? renderFeedTab() : renderNutritionTab();
   document.getElementById('tabContent').innerHTML = html;
+
+  if(TAB==='nutricion'){
+    bindFoodSearchInput();
+    const saveBtn = document.getElementById('nutriSaveBtn');
+    if(saveBtn) saveBtn.addEventListener('click', async ()=>{
+      const activityLevel = document.getElementById('nutriActivity').value;
+      const goal = document.getElementById('nutriGoal').value;
+      const goalRate = document.getElementById('nutriRate').value;
+      const targetWeight = parseFloat(document.getElementById('nutriTarget').value);
+      try{
+        await saveNutritionSettings(activityLevel, goal, goalRate, isNaN(targetWeight)?null:targetWeight);
+        toast('Objetivo actualizado.');
+      }catch(e){ console.error(e); toast('Error al guardar.'); }
+    });
+    document.querySelectorAll('[data-toggle-mealday]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const day = el.dataset.toggleMealday;
+        if(MEAL_HISTORY_EXPANDED.has(day)) MEAL_HISTORY_EXPANDED.delete(day); else MEAL_HISTORY_EXPANDED.add(day);
+        renderTabContent();
+      });
+    });
+    document.querySelectorAll('[data-del-meal]').forEach(el=>{
+      el.addEventListener('click', async ()=>{
+        const res = await showModal({title:'Borrar comida', message:'¿Borrar este registro? Esta acción no se puede deshacer.', confirmText:'Borrar'});
+        if(!res.confirmed) return;
+        try{ await deleteMeal(el.dataset.delMeal); }catch(e){ console.error(e); toast('Error al borrar.'); }
+      });
+    });
+  }
 
   document.querySelectorAll('[data-view-profile]').forEach(el=>{
     el.addEventListener('click', ()=>{
@@ -2145,11 +2599,16 @@ function openEditProfileModal(){
       <div style="margin-top:10px;">
         <label>Sexo</label>
         <select id="editSexInput">
-          <option value="">Prefiero no decirlo</option>
+          <option value="" ${!p.sex?'selected':''} disabled>Selecciona...</option>
           <option value="Hombre" ${p.sex==='Hombre'?'selected':''}>Hombre</option>
           <option value="Mujer" ${p.sex==='Mujer'?'selected':''}>Mujer</option>
           <option value="Otro" ${p.sex==='Otro'?'selected':''}>Otro</option>
+          <option value="Prefiero no decirlo" ${p.sex==='Prefiero no decirlo'?'selected':''}>Prefiero no decirlo</option>
         </select>
+      </div>
+      <div style="margin-top:10px;">
+        <label>Fecha de nacimiento</label>
+        <input type="date" id="editBirthdayInput" value="${p.birthday||''}" />
       </div>
       <div class="empty" id="editProfileErr" style="margin-top:6px;"></div>
       <div class="modal-actions">
@@ -2167,14 +2626,76 @@ function openEditProfileModal(){
     const n = parseFloat(document.getElementById('editBwInput').value);
     const h = parseFloat(document.getElementById('editHeightInput').value);
     const sex = document.getElementById('editSexInput').value;
+    const birthday = document.getElementById('editBirthdayInput').value;
     if(!n || n<=0){ err.textContent = 'Peso no válido.'; return; }
     try{
-      await updateProfileDetails(n, isNaN(h)?null:h, sex);
+      await updateProfileDetails(n, isNaN(h)?null:h, sex, birthday);
       close();
       toast('Perfil actualizado.');
     }catch(e){ console.error(e); err.textContent = 'Error al guardar.'; }
   });
 }
+
+const CHANGELOG = [
+  {section:'🔐 Cuenta y acceso', items:[
+    'Inicio de sesión con Google (Firebase Auth), con perfil por usuario.',
+    'El perfil ahora exige altura, sexo y fecha de nacimiento antes de poder usar la app — necesarios para calcular estándares e IMC correctamente.',
+    'Puedes cambiar tu foto (por URL) y editar tus datos en cualquier momento desde "Mi perfil".'
+  ]},
+  {section:'🏋️ Ejercicios y niveles', items:[
+    'Más de 50 ejercicios organizados en 4 categorías: Empuje, Tirón, Pierna y Calistenia, además de una categoría "Principales".',
+    'Cada ejercicio tiene 5 niveles (Novato, Intermedio, Avanzado, Élite, Top Mundial) calculados sobre tu propio peso corporal, usando la fórmula de Epley para comparar reps de forma justa.',
+    'El nivel Novato ahora empieza desde el primer kilo registrado (antes había una zona "sin clasificar").',
+    'Tabla de estándares específica para mujeres, aplicada automáticamente según el sexo de cada perfil.',
+    'Ejercicios especiales: planchas medidas en segundos, flexiones medidas como % de tu peso corporal.'
+  ]},
+  {section:'🏆 Progreso personal', items:[
+    'Nivel Global del Usuario (NGU): una puntuación combinada de banca+sentadilla+peso muerto+dominadas, con tiers de animales (🐱 Gatito a 🐯 Tigre de Bengala).',
+    'Sistema de medallas (17 en total) que se desbloquean solas al cumplir objetivos, con una animación al conseguirlas.',
+    'Mapa de calor corporal: una silueta que colorea tus zonas más fuertes según tus marcas.',
+    'Asistente de recomendaciones: consejos automáticos sobre tu punto débil, desequilibrios, y qué te falta para subir de nivel o conseguir una medalla.',
+    'Calendario de actividad mensual, navegable con flechas, mostrando qué días entrenaste.',
+    'Gráficas de progreso con ejes, leyenda, y comparación de tu evolución con la de un amigo.'
+  ]},
+  {section:'📤 Social', items:[
+    'Feed de actividad: registros, récords personales y "adelantamientos" en el ranking, con reacciones (emoji) y comentarios.',
+    'Aviso de cumpleaños: el día que le toca a alguien, aparece destacado en el Feed.',
+    'Botón para compartir tarjetas de logros (Feed) y de rankings por ejercicio directamente a WhatsApp u otras apps.'
+  ]},
+  {section:'🍎 Nutrición', items:[
+    'Calculadora de calorías y macros (BMR/TDEE) según tu perfil, objetivo y nivel de actividad.',
+    'Registro de comidas con buscador conectado a una base de datos real de alimentos (Open Food Facts).',
+    'Resumen diario de calorías/macros y un historial de los últimos 14 días.'
+  ]},
+  {section:'🛠️ Por debajo', items:[
+    'La app pasó de ser una prueba dentro del chat a una web real, con su propia base de datos (Firebase) y control de acceso por usuario.',
+    'Código subido a GitHub para tener historial de versiones.'
+  ]}
+];
+function openChangelogModal(){
+  const overlay = document.getElementById('modalOverlay');
+  const sections = CHANGELOG.map(sec=>`
+    <div class="changelog-section">
+      <h4>${sec.section}</h4>
+      ${sec.items.map(it=>`<div class="changelog-item">${esc(it)}</div>`).join('')}
+    </div>
+  `).join('');
+  overlay.innerHTML = `
+    <div class="modal-box large">
+      <h3>🆕 Todo lo nuevo</h3>
+      <p>Resumen de las mejoras añadidas a la app.</p>
+      ${sections}
+      <div class="modal-actions" style="margin-top:20px;">
+        <button id="changelogClose" style="width:100%;">Cerrar</button>
+      </div>
+    </div>
+  `;
+  overlay.classList.add('show');
+  function close(){ overlay.classList.remove('show'); overlay.innerHTML=''; }
+  document.getElementById('changelogClose').addEventListener('click', close);
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) close(); }, {once:true});
+}
+document.getElementById('changelogBtn').addEventListener('click', openChangelogModal);
 
 function showModal(opts){
   return new Promise(resolve=>{
