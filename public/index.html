@@ -313,6 +313,24 @@ function computeNGU(uid){
   return {ngu: count===4 ? sum/4 : null, count, missing};
 }
 function fmt2(n){ return (Math.round(n*100)/100).toString().replace('.',','); }
+function computeIMC(uid){
+  const p = PROFILES[uid];
+  if(!p || !p.bw || !p.height) return null;
+  const hM = p.height/100;
+  return p.bw/(hM*hM);
+}
+function imcCategory(imc){
+  if(imc==null) return null;
+  if(imc<18.5) return 'Bajo peso';
+  if(imc<25) return 'Normal';
+  if(imc<30) return 'Sobrepeso';
+  return 'Obesidad';
+}
+function avgWeight(uid, exId){
+  const lifts = LIFTS.filter(l=>l.uid===uid && l.exercise===exId);
+  if(!lifts.length) return null;
+  return lifts.reduce((s,l)=>s+l.weight,0)/lifts.length;
+}
 
 function epley(w,r){ return r<=1 ? w : w*(1+r/30); }
 function userRatio(ex, weight, reps, bw){
@@ -431,6 +449,8 @@ let PERFIL_CAT = 'Todos';
 let RANKING_CAT = 'Todos';
 let HIST_CAT = 'Todos';
 let COMPARE_UID = null;
+let VIEW_PROFILE_UID = null;
+let COMPARE_PROFILE_ACTIVE = false;
 let unsubs = [];
 
 function toast(msg){
@@ -478,15 +498,24 @@ function signInGoogle(){
   auth.signInWithPopup(provider).catch(e=>{ console.error(e); toast('No se pudo iniciar sesión.'); });
 }
 
-async function createProfile(name, bw){
+async function createProfile(name, bw, height, sex){
   const uid = currentUser.uid;
-  await db.collection('profiles').doc(uid).set({name, bw});
+  const data = {name, bw};
+  if(height!=null) data.height = height;
+  if(sex) data.sex = sex;
+  await db.collection('profiles').doc(uid).set(data);
   await db.collection('bwHistory').add({uid, bw, ts:Date.now()});
 }
-async function updateBw(n){
+async function updateProfileDetails(bw, height, sex){
   const uid = currentUser.uid;
-  await db.collection('profiles').doc(uid).update({bw:n});
-  await db.collection('bwHistory').add({uid, bw:n, ts:Date.now()});
+  const prevBw = PROFILES[uid].bw;
+  const data = {bw, sex: sex || ''};
+  if(height!=null && !isNaN(height)) data.height = height;
+  else data.height = firebase.firestore.FieldValue.delete();
+  await db.collection('profiles').doc(uid).update(data);
+  if(bw !== prevBw){
+    await db.collection('bwHistory').add({uid, bw, ts:Date.now()});
+  }
 }
 async function saveLift(exId, weight, reps, note){
   const uid = currentUser.uid;
@@ -644,8 +673,27 @@ function render(){
   if(!currentUser){ main.innerHTML = renderSignIn(); bindSignIn(); return; }
   if(!profilesLoaded){ main.innerHTML = '<div class="spin"></div>'; return; }
   if(!PROFILES[currentUser.uid]){ main.innerHTML = renderOnboard(); bindOnboard(); return; }
+  if(VIEW_PROFILE_UID && PROFILES[VIEW_PROFILE_UID]){
+    main.innerHTML = renderUserProfileScreen(VIEW_PROFILE_UID);
+    bindUserProfileScreen();
+    return;
+  }
   main.innerHTML = renderDashboard();
   bindDashboard();
+}
+
+function bindUserProfileScreen(){
+  const backBtn = document.getElementById('backToApp');
+  if(backBtn) backBtn.addEventListener('click', ()=>{
+    VIEW_PROFILE_UID = null;
+    COMPARE_PROFILE_ACTIVE = false;
+    render();
+  });
+  const compareBtn = document.getElementById('compareToggle');
+  if(compareBtn) compareBtn.addEventListener('click', ()=>{
+    COMPARE_PROFILE_ACTIVE = !COMPARE_PROFILE_ACTIVE;
+    render();
+  });
 }
 
 function renderSignIn(){
@@ -686,12 +734,27 @@ function renderOnboard(){
 
     <div class="card">
       <h3 style="margin:0 0 4px;font-size:15px;">Completa tu perfil</h3>
-      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">Sesión iniciada como ${esc(currentUser.email||'')}. Solo falta tu peso corporal.</p>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">Sesión iniciada como ${esc(currentUser.email||'')}.</p>
       <label>Nombre para mostrar</label>
       <input id="newName" value="${esc(suggested)}" placeholder="Ej: Marc" />
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label>Tu peso corporal (kg)</label>
+          <input id="newBw" type="number" step="0.1" placeholder="Ej: 78" />
+        </div>
+        <div>
+          <label>Altura (cm, opcional)</label>
+          <input id="newHeight" type="number" step="0.5" placeholder="Ej: 178" />
+        </div>
+      </div>
       <div style="margin-top:12px;">
-        <label>Tu peso corporal (kg)</label>
-        <input id="newBw" type="number" step="0.1" placeholder="Ej: 78" />
+        <label>Sexo (opcional)</label>
+        <select id="newSex">
+          <option value="">Prefiero no decirlo</option>
+          <option value="Hombre">Hombre</option>
+          <option value="Mujer">Mujer</option>
+          <option value="Otro">Otro</option>
+        </select>
       </div>
       <button id="joinBtn" style="margin-top:14px;width:100%;">Guardar y entrar</button>
       <div class="empty" id="onboardErr" style="margin-top:6px;"></div>
@@ -702,11 +765,13 @@ function bindOnboard(){
   document.getElementById('joinBtn').addEventListener('click', async ()=>{
     const name = document.getElementById('newName').value.trim();
     const bw = parseFloat(document.getElementById('newBw').value);
+    const heightRaw = parseFloat(document.getElementById('newHeight').value);
+    const sex = document.getElementById('newSex').value;
     const err = document.getElementById('onboardErr');
     if(!name){ err.textContent = 'Escribe un nombre.'; return; }
     if(!bw || bw<=0){ err.textContent = 'Introduce un peso corporal válido.'; return; }
     try{
-      await createProfile(name, bw);
+      await createProfile(name, bw, isNaN(heightRaw)?null:heightRaw, sex);
     }catch(e){ console.error(e); toast('Error al guardar tu perfil.'); }
   });
 }
@@ -760,7 +825,7 @@ function renderDashboard(){
     <div id="tabContent"></div>
 
     <div class="footer-actions">
-      <button class="ghost small" id="editBw">Actualizar tu peso</button>
+      <button class="ghost small" id="editBw">Editar perfil</button>
       <button class="ghost small" id="clearMine">Borrar mis marcas</button>
     </div>
     <div class="export-actions">
@@ -925,6 +990,110 @@ function renderHistorialTab(){
   return html;
 }
 
+function renderUserProfileScreen(uid){
+  const p = PROFILES[uid];
+  if(!p){
+    return `<button class="ghost small" id="backToApp" style="margin-bottom:12px;">← Volver</button>
+      <div class="card"><div class="empty">Perfil no encontrado.</div></div>`;
+  }
+  const isMe = uid===currentUser.uid;
+  const imc = computeIMC(uid);
+  const imcCat = imcCategory(imc);
+  const nguData = computeNGU(uid);
+  const nguIdx = nguData.count===4 ? nguTier(nguData.ngu) : -1;
+  const exercisesWithData = EXERCISES.filter(ex=>LIFTS.some(l=>l.uid===uid && l.exercise===ex.id));
+
+  let html = `
+    <button class="ghost small" id="backToApp" style="margin-bottom:12px;">← Volver</button>
+    <div class="card" style="text-align:center;">
+      <div style="display:flex;justify-content:center;">${avatarHTML(uid,64)}</div>
+      <h2 style="margin:10px 0 2px;font-size:19px;">${esc(p.name)}</h2>
+      ${!isMe ? `<button class="ghost small" id="compareToggle" style="margin-top:8px;">${COMPARE_PROFILE_ACTIVE?'Ocultar comparación':'Comparar con tu perfil'}</button>` : ''}
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-size:14px;">Datos</h3>
+      <table>
+        <tr><td>Peso corporal</td><td>${fmt(p.bw)} kg</td></tr>
+        <tr><td>Altura</td><td>${p.height!=null ? fmt(p.height)+' cm' : '—'}</td></tr>
+        <tr><td>IMC</td><td>${imc!=null ? fmt2(imc)+' ('+imcCat+')' : '—'}</td></tr>
+        <tr><td>Sexo</td><td>${p.sex ? esc(p.sex) : '—'}</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="ex-head"><h3 style="margin:0;font-size:14px;">🏆 Nivel Global (NGU)</h3>
+        ${nguIdx>=0 ? `<span class="badge" style="background:${NGU_COLORS[nguIdx]};color:#0d0d0e;">${NGU_TIERS[nguIdx].emoji} ${NGU_TIERS[nguIdx].name}</span>` : ''}
+      </div>
+      <div class="ex-meta" style="margin-top:8px;"><span>${nguData.count===4 ? 'NGU = '+fmt2(nguData.ngu) : 'Faltan: '+nguData.missing.join(', ')}</span></div>
+    </div>
+    <div class="section-title">Marcas por ejercicio</div>
+    <div class="card">
+  `;
+  if(!exercisesWithData.length){
+    html += `<div class="empty">Aún no ha registrado ninguna marca.</div>`;
+  } else {
+    html += `<div style="overflow-x:auto;"><table><tr><th>Ejercicio</th><th>Marca media</th><th>Récord</th><th>Nivel</th></tr>`;
+    exercisesWithData.forEach(ex=>{
+      const avg = avgWeight(uid, ex.id);
+      const best = bestLift(uid, ex.id);
+      const idx = best ? levelFor(ex, best.ratio) : -1;
+      const lvlName = idx>=0 ? TIER_NAMES[idx] : '—';
+      const lvlColor = idx>=0 ? TIER_COLORS[idx] : 'var(--muted)';
+      const avgTxt = ex.type==='time' ? `${fmt(avg)} s` : `${fmt(avg)} kg`;
+      const bestTxt = best ? liftText(ex, best.lift.weight, best.lift.reps) : '—';
+      html += `<tr><td>${ex.name}</td><td>${avgTxt}</td><td>${bestTxt}</td>
+        <td><span class="badge" style="background:${lvlColor};color:#0d0d0e;">${lvlName}</span></td></tr>`;
+    });
+    html += `</table></div>`;
+  }
+  html += `</div>`;
+
+  if(!isMe && COMPARE_PROFILE_ACTIVE){
+    html += renderProfileComparison(currentUser.uid, uid);
+  }
+  return html;
+}
+
+function renderProfileComparison(meUid, otherUid){
+  const pMe = PROFILES[meUid], pOther = PROFILES[otherUid];
+  const imcMe = computeIMC(meUid), imcOther = computeIMC(otherUid);
+  const nguMe = computeNGU(meUid), nguOther = computeNGU(otherUid);
+  let html = `<div class="section-title">Comparativa</div><div class="card">
+    <div style="overflow-x:auto;"><table>
+      <tr><th></th><th>Tú</th><th>${esc(pOther.name)}</th></tr>
+      <tr><td>Peso corporal</td><td>${fmt(pMe.bw)} kg</td><td>${fmt(pOther.bw)} kg</td></tr>
+      <tr><td>Altura</td><td>${pMe.height!=null?fmt(pMe.height)+' cm':'—'}</td><td>${pOther.height!=null?fmt(pOther.height)+' cm':'—'}</td></tr>
+      <tr><td>IMC</td><td>${imcMe!=null?fmt2(imcMe):'—'}</td><td>${imcOther!=null?fmt2(imcOther):'—'}</td></tr>
+      <tr><td>NGU</td><td>${nguMe.count===4?fmt2(nguMe.ngu):'—'}</td><td>${nguOther.count===4?fmt2(nguOther.ngu):'—'}</td></tr>
+    </table></div>
+  </div>`;
+
+  const allExIds = new Set([
+    ...LIFTS.filter(l=>l.uid===meUid).map(l=>l.exercise),
+    ...LIFTS.filter(l=>l.uid===otherUid).map(l=>l.exercise)
+  ]);
+  const exList = EXERCISES.filter(ex=>allExIds.has(ex.id));
+  html += `<div class="section-title">Por ejercicio</div><div class="card">`;
+  if(!exList.length){
+    html += `<div class="empty">Ninguno de los dos tiene marcas registradas.</div>`;
+  } else {
+    html += `<div style="overflow-x:auto;"><table><tr><th>Ejercicio</th><th>Tú</th><th>${esc(pOther.name)}</th></tr>`;
+    exList.forEach(ex=>{
+      const bMe = bestLift(meUid, ex.id);
+      const bOther = bestLift(otherUid, ex.id);
+      const meTxt = bMe ? `${liftText(ex,bMe.lift.weight,bMe.lift.reps)} (${ratioText(ex,bMe.ratio)})` : '—';
+      const otherTxt = bOther ? `${liftText(ex,bOther.lift.weight,bOther.lift.reps)} (${ratioText(ex,bOther.ratio)})` : '—';
+      const meAhead = bMe && (!bOther || bMe.ratio > bOther.ratio);
+      const otherAhead = bOther && (!bMe || bOther.ratio > bMe.ratio);
+      html += `<tr><td>${ex.name}</td>
+        <td style="${meAhead?'color:var(--accent);font-weight:600;':''}">${meTxt}</td>
+        <td style="${otherAhead?'color:var(--accent);font-weight:600;':''}">${otherTxt}</td></tr>`;
+    });
+    html += `</table></div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 function renderNguBoard(){
   const meUid = currentUser.uid;
   const all = Object.keys(PROFILES).map(uid=>({uid, data:computeNGU(uid)}));
@@ -939,7 +1108,7 @@ function renderNguBoard(){
       const color = idx>=0 ? NGU_COLORS[idx] : 'var(--muted)';
       const label = tier ? `${tier.emoji} ${tier.name}` : 'Sin clasificar';
       html += `<div class="rank-row ${r.uid===meUid?'you-row':''}">${avatarHTML(r.uid,24)}<div class="rank-pos">${i+1}</div>
-        <div class="rank-name">${esc(displayName(r.uid))}</div>
+        <div class="rank-name" data-view-profile="${r.uid}" style="cursor:pointer;">${esc(displayName(r.uid))}</div>
         <div class="rank-avg">NGU ${fmt2(r.ngu)} · <span class="badge" style="background:${color};color:#0d0d0e;">${label}</span></div></div>`;
     });
   }
@@ -967,7 +1136,7 @@ function renderRankingTab(){
         const liftTxt = liftText(ex, r.lift.weight, r.lift.reps);
         const lvlName = r.idx>=0?TIER_NAMES[r.idx]:'—';
         const lvlColor = r.idx>=0?TIER_COLORS[r.idx]:'var(--muted)';
-        html += `<tr class="${r.uid===meUid?'you-row':''}"><td class="pos">${i+1}</td><td style="display:flex;align-items:center;gap:6px;">${avatarHTML(r.uid,20)}${esc(displayName(r.uid))}</td><td>${liftTxt}</td>
+        html += `<tr class="${r.uid===meUid?'you-row':''}"><td class="pos">${i+1}</td><td style="display:flex;align-items:center;gap:6px;cursor:pointer;" data-view-profile="${r.uid}">${avatarHTML(r.uid,20)}${esc(displayName(r.uid))}</td><td>${liftTxt}</td>
           <td><span class="badge" style="background:${lvlColor};color:#0d0d0e;">${lvlName}</span></td></tr>`;
       });
       html += `</table>`;
@@ -993,7 +1162,7 @@ function renderRankingTab(){
   } else {
     general.forEach((g,i)=>{
       html += `<div class="rank-row ${g.uid===meUid?'you-row':''}">${avatarHTML(g.uid,24)}<div class="rank-pos">${i+1}</div>
-        <div class="rank-name">${esc(displayName(g.uid))}</div>
+        <div class="rank-name" data-view-profile="${g.uid}" style="cursor:pointer;">${esc(displayName(g.uid))}</div>
         <div class="rank-avg">Nivel medio ${fmt(g.avg)}/5 · ${g.count} ejerc. · ${fmt(g.normAvg*100)}% progreso medio</div></div>`;
     });
   }
@@ -1051,14 +1220,7 @@ function bindDashboard(){
 
   document.getElementById('signOutBtn').addEventListener('click', ()=> auth.signOut());
 
-  document.getElementById('editBw').addEventListener('click', async ()=>{
-    const cur = PROFILES[currentUser.uid].bw;
-    const res = await showModal({title:'Actualizar tu peso', showInput:true, inputType:'number', inputStep:'0.1', inputLabel:'Peso corporal (kg)', inputValue:cur, confirmText:'Guardar'});
-    if(!res.confirmed) return;
-    const n = parseFloat(res.value);
-    if(!n || n<=0){ toast('Peso no válido.'); return; }
-    try{ await updateBw(n); }catch(e){ console.error(e); toast('Error al actualizar el peso.'); }
-  });
+  document.getElementById('editBw').addEventListener('click', openEditProfileModal);
 
   document.getElementById('clearMine').addEventListener('click', async ()=>{
     const res = await showModal({title:'Borrar tus marcas', message:'¿Seguro que quieres borrar todas tus marcas registradas? Esta acción no se puede deshacer.', confirmText:'Borrar'});
@@ -1079,6 +1241,14 @@ function bindDashboard(){
 function renderTabContent(){
   const html = TAB==='perfil' ? renderPerfilTab() : TAB==='ranking' ? renderRankingTab() : renderHistorialTab();
   document.getElementById('tabContent').innerHTML = html;
+
+  document.querySelectorAll('[data-view-profile]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      VIEW_PROFILE_UID = el.dataset.viewProfile;
+      COMPARE_PROFILE_ACTIVE = false;
+      render();
+    });
+  });
 
   document.querySelectorAll('[data-del-entry]').forEach(b=>{
     b.addEventListener('click', async ()=>{
@@ -1127,6 +1297,52 @@ function renderTabContent(){
       if(scope==='hist') HIST_CAT = cat;
       renderTabContent();
     });
+  });
+}
+
+function openEditProfileModal(){
+  const overlay = document.getElementById('modalOverlay');
+  const p = PROFILES[currentUser.uid];
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h3>Editar perfil</h3>
+      <label>Peso corporal (kg)</label>
+      <input type="number" step="0.1" id="editBwInput" value="${p.bw}" />
+      <div style="margin-top:10px;">
+        <label>Altura (cm)</label>
+        <input type="number" step="0.5" id="editHeightInput" value="${p.height!=null?p.height:''}" placeholder="Ej: 178" />
+      </div>
+      <div style="margin-top:10px;">
+        <label>Sexo</label>
+        <select id="editSexInput">
+          <option value="">Prefiero no decirlo</option>
+          <option value="Hombre" ${p.sex==='Hombre'?'selected':''}>Hombre</option>
+          <option value="Mujer" ${p.sex==='Mujer'?'selected':''}>Mujer</option>
+          <option value="Otro" ${p.sex==='Otro'?'selected':''}>Otro</option>
+        </select>
+      </div>
+      <div class="empty" id="editProfileErr" style="margin-top:6px;"></div>
+      <div class="modal-actions">
+        <button class="ghost" id="editProfileCancel">Cancelar</button>
+        <button id="editProfileSave">Guardar</button>
+      </div>
+    </div>
+  `;
+  overlay.classList.add('show');
+  function close(){ overlay.classList.remove('show'); overlay.innerHTML=''; }
+  document.getElementById('editProfileCancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) close(); }, {once:true});
+  document.getElementById('editProfileSave').addEventListener('click', async ()=>{
+    const err = document.getElementById('editProfileErr');
+    const n = parseFloat(document.getElementById('editBwInput').value);
+    const h = parseFloat(document.getElementById('editHeightInput').value);
+    const sex = document.getElementById('editSexInput').value;
+    if(!n || n<=0){ err.textContent = 'Peso no válido.'; return; }
+    try{
+      await updateProfileDetails(n, isNaN(h)?null:h, sex);
+      close();
+      toast('Perfil actualizado.');
+    }catch(e){ console.error(e); err.textContent = 'Error al guardar.'; }
   });
 }
 
